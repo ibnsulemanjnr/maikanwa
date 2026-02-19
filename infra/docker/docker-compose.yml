@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: maikanwa
+    ports:
+      - "5433:5432"   # <-- change to 5433
+    volumes:
+      - maikanwa_db:/var/lib/postgresql/data
+volumes:
+  maikanwa_db:
