@@ -13,6 +13,7 @@ Clean, modular UI components built with React, TypeScript, and Tailwind CSS.
 ## Component Structure
 
 ### Base UI Components (`/components/ui`)
+
 - **Button** - Primary, secondary, outline, ghost, danger variants
 - **Input** - Text input with label, error, and helper text
 - **Select** - Dropdown with options
@@ -30,6 +31,7 @@ Clean, modular UI components built with React, TypeScript, and Tailwind CSS.
 - **Card** - Content container with header, body, footer
 
 ### Store Components (`/components/store`)
+
 - **Header** - Main navigation with cart and account
 - **Footer** - Site footer with links
 - **ProductCard** - Product display in grid
@@ -48,6 +50,7 @@ Clean, modular UI components built with React, TypeScript, and Tailwind CSS.
 - **ProductImageGallery** - Product image viewer
 
 ### Admin Components (`/components/admin`)
+
 - **AdminSidebar** - Admin navigation menu
 - **AdminHeader** - Admin top bar
 - **StatsCard** - Dashboard metrics
@@ -55,11 +58,13 @@ Clean, modular UI components built with React, TypeScript, and Tailwind CSS.
 - **ImageUpload** - Multi-image uploader
 
 ### Providers (`/components/providers`)
+
 - **ToastProvider** - Toast notifications (react-hot-toast)
 
 ## Usage Examples
 
 ### Button
+
 ```tsx
 import { Button } from '@/components/ui';
 
@@ -68,20 +73,22 @@ import { Button } from '@/components/ui';
 ```
 
 ### Input
-```tsx
-import { Input } from '@/components/ui';
 
-<Input 
-  label="Email" 
-  type="email" 
+```tsx
+import { Input } from "@/components/ui";
+
+<Input
+  label="Email"
+  type="email"
   error="Invalid email"
   helperText="We'll never share your email"
-/>
+/>;
 ```
 
 ### ProductCard
+
 ```tsx
-import { ProductCard } from '@/components/store';
+import { ProductCard } from "@/components/store";
 
 <ProductCard
   id="1"
@@ -92,29 +99,32 @@ import { ProductCard } from '@/components/store';
   category="Fabrics"
   inStock={true}
   isNew={true}
-/>
+/>;
 ```
 
 ### Modal
+
 ```tsx
-import { Modal, Button } from '@/components/ui';
+import { Modal, Button } from "@/components/ui";
 
 const [isOpen, setIsOpen] = useState(false);
 
 <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Confirm">
   <p>Are you sure?</p>
   <Button onClick={() => setIsOpen(false)}>Confirm</Button>
-</Modal>
+</Modal>;
 ```
 
 ## Best Practices
 
 1. **Import from index files** for cleaner imports:
+
    ```tsx
-   import { Button, Input, Card } from '@/components/ui';
+   import { Button, Input, Card } from "@/components/ui";
    ```
 
 2. **Use cn() utility** for conditional classes:
+
    ```tsx
    import { cn } from '@/lib/utils';
    className={cn('base-class', condition && 'conditional-class')}
