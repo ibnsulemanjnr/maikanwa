@@ -1,22 +1,23 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui';
-import { CategoryCard, ProductCard } from '@/components/store';
+import Link from "next/link";
+import { Button } from "@/components/ui";
+import { CategoryCard, ProductCard } from "@/components/store";
 
 export default function HomePage() {
   return (
-    <div>
+    <div className="min-h-screen">
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-[#1E2A78] to-[#2A3A88] text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
           <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
               Kayan inganci + dinki na zamani
             </h1>
-            <p className="text-xl md:text-2xl mb-4 text-white/90">
+            <p className="text-xl md:text-2xl mb-3 text-white/90">
               Quality Fabrics. Clean Tailoring. Reliable Delivery.
             </p>
-            <p className="text-lg mb-8 text-white/80">
-              Buy premium fabrics, ready-made clothing, and get expert tailoring services — all in one place.
+            <p className="text-base md:text-lg mb-8 text-white/80">
+              Buy premium fabrics, ready-made clothing, and get expert tailoring services — all in
+              one place.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link href="/shop">
@@ -25,7 +26,11 @@ export default function HomePage() {
                 </Button>
               </Link>
               <Link href="/tailoring">
-                <Button variant="outline" size="lg" className="border-white text-white hover:bg-white hover:text-[#1E2A78]">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="border-white text-white hover:bg-white hover:text-[#1E2A78]"
+                >
                   Tailoring Services
                 </Button>
               </Link>
@@ -35,11 +40,11 @@ export default function HomePage() {
       </section>
 
       {/* Categories Section */}
-      <section className="py-16 bg-white">
+      <section className="py-12 md:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-[#111827] mb-4">Shop by Category</h2>
-            <p className="text-gray-600 text-lg">Zaɓi abin da kake bukata</p>
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111827] mb-2">Shop by Category</h2>
+            <p className="text-gray-600">Zaɓi abin da kake bukata</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <CategoryCard
@@ -71,48 +76,82 @@ export default function HomePage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-16 bg-[#FAFAFA]">
+      <section className="py-12 md:py-16 bg-[#FAFAFA]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-[#1E2A78] rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-[#111827] mb-2">Quality Guaranteed</h3>
-              <p className="text-gray-600">Premium fabrics and materials from trusted suppliers</p>
+              <h3 className="text-lg font-semibold text-[#111827] mb-2">Quality Guaranteed</h3>
+              <p className="text-sm text-gray-600">
+                Premium fabrics and materials from trusted suppliers
+              </p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-[#F4B400] rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-[#111827]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                <svg
+                  className="w-8 h-8 text-[#111827]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"
+                  />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-[#111827] mb-2">Expert Tailoring</h3>
-              <p className="text-gray-600">Professional tailors with years of experience</p>
+              <h3 className="text-lg font-semibold text-[#111827] mb-2">Expert Tailoring</h3>
+              <p className="text-sm text-gray-600">Professional tailors with years of experience</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-[#1E2A78] rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-[#111827] mb-2">Fast Delivery</h3>
-              <p className="text-gray-600">Reliable delivery across Nigeria</p>
+              <h3 className="text-lg font-semibold text-[#111827] mb-2">Fast Delivery</h3>
+              <p className="text-sm text-gray-600">Reliable delivery across Nigeria</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* How It Works - Tailoring */}
-      <section className="py-16 bg-white">
+      <section className="py-12 md:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-[#111827] mb-4">How Tailoring Works</h2>
-            <p className="text-gray-600 text-lg">Simple process from fabric to fit</p>
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-[#111827] mb-2">
+              How Tailoring Works
+            </h2>
+            <p className="text-gray-600">Simple process from fabric to fit</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             <div className="text-center">
               <div className="w-12 h-12 bg-[#F4B400] rounded-full flex items-center justify-center mx-auto mb-4 text-[#111827] font-bold text-xl">
                 1
@@ -146,11 +185,12 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 bg-[#1E2A78] text-white">
+      <section className="py-12 md:py-16 bg-[#1E2A78] text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Get Started?</h2>
-          <p className="text-xl mb-8 text-white/90">
-            Join thousands of satisfied customers who trust Maikanwa for quality fabrics and tailoring.
+          <h2 className="text-2xl md:text-3xl font-bold mb-3">Ready to Get Started?</h2>
+          <p className="text-lg mb-8 text-white/90">
+            Join thousands of satisfied customers who trust Maikanwa for quality fabrics and
+            tailoring.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/shop">
@@ -159,7 +199,11 @@ export default function HomePage() {
               </Button>
             </Link>
             <Link href="/account/register">
-              <Button variant="outline" size="lg" className="border-white text-white hover:bg-white hover:text-[#1E2A78]">
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-white text-white hover:bg-white hover:text-[#1E2A78]"
+              >
                 Create Account
               </Button>
             </Link>
