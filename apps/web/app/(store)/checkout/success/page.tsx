@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button, Spinner, Badge } from "@/components/ui";
 
 type VerifyData =
@@ -25,7 +25,6 @@ type VerifyData =
 type ApiResponse<T> = { ok: true; data: T } | { ok: false; error?: string };
 
 export default function CheckoutSuccessPage() {
-  const router = useRouter();
   const sp = useSearchParams();
 
   // Paystack commonly returns `reference` and sometimes `trxref`
@@ -40,7 +39,10 @@ export default function CheckoutSuccessPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function verify() {
-    if (!reference) return;
+    if (!reference) {
+      setError("No payment reference provided");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -53,7 +55,7 @@ export default function CheckoutSuccessPage() {
 
       if (!json.ok) {
         setData(null);
-        setError(json.error || "Verification failed");
+        setError(json.error || "Payment verification failed. Please try again or contact support.");
         return;
       }
 
@@ -61,21 +63,27 @@ export default function CheckoutSuccessPage() {
 
       // If paid, we can nudge user to account/orders page.
       // Keep it simple: you can change the target when orders pages are ready.
-      if ((json.data as any).paid === true || (json.data as any).alreadyPaid === true) {
+      if (
+        (json.data as { paid?: boolean; alreadyPaid?: boolean }).paid === true ||
+        (json.data as { paid?: boolean; alreadyPaid?: boolean }).alreadyPaid === true
+      ) {
         // Optional: auto-route after a short moment
         // router.push(`/account/orders/${json.data.orderId}`);
       }
-    } catch {
+    } catch (err) {
       setData(null);
-      setError("Verification failed");
+      setError(
+        (err as Error)?.message || "Network error. Please check your connection and try again.",
+      );
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    // Auto-verify once on arrival
-    if (reference) verify();
+    if (reference) {
+      verify();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reference]);
 
@@ -85,14 +93,15 @@ export default function CheckoutSuccessPage() {
         <div className="rounded-2xl bg-white p-8 shadow-sm border border-gray-100 text-center">
           <h1 className="text-2xl font-bold text-[#111827]">Payment Status</h1>
           <p className="mt-2 text-gray-600">
-            Missing payment reference. Please return to your account or try checkout again.
+            No payment reference found. If you just placed an order, please check your email or
+            account.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/cart">
-              <Button variant="outline">Back to Cart</Button>
+            <Link href="/orders">
+              <Button>View Orders</Button>
             </Link>
             <Link href="/shop">
-              <Button>Browse Products</Button>
+              <Button variant="outline">Continue Shopping</Button>
             </Link>
           </div>
         </div>
@@ -100,8 +109,10 @@ export default function CheckoutSuccessPage() {
     );
   }
 
-  const isPaid = (data as any)?.paid === true || (data as any)?.alreadyPaid === true;
-  const isPending = data && (data as any)?.paid === false;
+  const isPaid =
+    (data as { paid?: boolean; alreadyPaid?: boolean })?.paid === true ||
+    (data as { paid?: boolean; alreadyPaid?: boolean })?.alreadyPaid === true;
+  const isPending = data && (data as { paid?: boolean })?.paid === false;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -170,12 +181,13 @@ export default function CheckoutSuccessPage() {
             {loading ? "Verifying..." : "Verify Again"}
           </Button>
 
-          {/* If/when you create orders routes, switch to `/account/orders` or `/account/orders/${data?.orderId}` */}
-          <Link href="/account" className="sm:ml-auto">
-            <Button variant="outline" className="w-full sm:w-auto">
-              Go to Account
-            </Button>
-          </Link>
+          {data?.orderId && (
+            <Link href="/orders" className="sm:ml-auto">
+              <Button variant="outline" className="w-full sm:w-auto">
+                View Orders
+              </Button>
+            </Link>
+          )}
 
           <Link href="/shop">
             <Button variant="outline" className="w-full sm:w-auto">

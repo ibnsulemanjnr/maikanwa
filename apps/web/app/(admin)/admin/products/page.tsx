@@ -10,13 +10,13 @@ interface Product {
   title: string;
   type: string;
   status: string;
-  basePrice?: number | null;
-  variants?: { price: number }[];
+  basePriceKobo?: number | null;
+  variants?: { priceKobo: number }[];
 }
 
 type ProductsResponse = { results: Product[] } | { data: Product[] } | Product[];
 
-function normalizeProductsPayload(payload: any): Product[] {
+function normalizeProductsPayload(payload: unknown): Product[] {
   if (!payload) return [];
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload.results)) return payload.results;
@@ -35,7 +35,7 @@ export default function AdminProductsPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/products", { cache: "no-store", credentials: "include" });
+      const res = await fetch("/api/admin/products", { cache: "no-store", credentials: "include" });
 
       // If unauthorized (shouldn't happen due to admin layout guard), handle gracefully
       if (res.status === 401 || res.status === 403) {
@@ -44,15 +44,15 @@ export default function AdminProductsPage() {
         return;
       }
 
-      const data: ProductsResponse = await res.json().catch(() => [] as any);
+      const data: ProductsResponse = await res.json().catch(() => [] as unknown);
       if (!res.ok) {
-        throw new Error((data as any)?.message || "Failed to load products");
+        throw new Error((data as { message?: string })?.message || "Failed to load products");
       }
 
       setProducts(normalizeProductsPayload(data));
-    } catch (err: any) {
+    } catch (err) {
       setError(
-        err?.message ||
+        (err as Error)?.message ||
           "Database connection error. Please check your .env file and run migrations.",
       );
       setProducts([]);
@@ -110,9 +110,11 @@ export default function AdminProductsPage() {
               key: "price",
               label: "Price",
               render: (row: Product) => {
-                const vPrice = row.variants?.[0]?.price;
-                const base = row.basePrice ?? 0;
-                const price = typeof vPrice === "number" ? vPrice : Number(base) || 0;
+                const vPriceKobo = row.variants?.[0]?.priceKobo;
+                const baseKobo = row.basePriceKobo ?? 0;
+                const priceKobo =
+                  typeof vPriceKobo === "number" ? vPriceKobo : Number(baseKobo) || 0;
+                const price = priceKobo / 100;
                 return `₦${price.toLocaleString()}`;
               },
             },

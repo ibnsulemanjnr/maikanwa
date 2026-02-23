@@ -5,10 +5,11 @@ import { ProductStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request, { params }: { params: { slug: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
+    const { slug } = await params;
     const product = await prisma.product.findUnique({
-      where: { slug: params.slug },
+      where: { slug },
       include: {
         images: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }] },
         variants: {

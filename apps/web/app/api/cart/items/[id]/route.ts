@@ -196,8 +196,9 @@ async function buildCartResponse(cartId: string) {
 }
 
 // PATCH: update quantity
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const cartId = await getActiveCartId(req);
     if (!cartId) return json({ ok: false, error: "Cart not found" }, { status: 404 });
 
@@ -209,7 +210,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!qty) return json({ ok: false, error: "quantity is required" }, { status: 400 });
 
     const item = await prisma.cartItem.findFirst({
-      where: { id: params.id, cartId },
+      where: { id, cartId },
       select: { id: true, variantId: true },
     });
 
@@ -261,13 +262,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE: remove item (+ children attached items)
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const cartId = await getActiveCartId(req);
     if (!cartId) return json({ ok: false, error: "Cart not found" }, { status: 404 });
 
     const item = await prisma.cartItem.findFirst({
-      where: { id: params.id, cartId },
+      where: { id, cartId },
       select: { id: true },
     });
 

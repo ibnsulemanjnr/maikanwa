@@ -120,6 +120,17 @@ export default function CartPage() {
     if (!cart) return;
     const qty = qtyDraft[itemId];
 
+    if (!qty || qty.trim() === "") {
+      setError("Quantity cannot be empty");
+      return;
+    }
+
+    const numQty = Number(qty);
+    if (isNaN(numQty) || numQty <= 0) {
+      setError("Quantity must be a positive number");
+      return;
+    }
+
     setBusyItemId(itemId);
     setError(null);
     try {
@@ -138,8 +149,8 @@ export default function CartPage() {
       const nextDraft: Record<string, string> = {};
       for (const it of json.data.items) nextDraft[it.id] = normalizeQty(it.quantity);
       setQtyDraft(nextDraft);
-    } catch {
-      setError("Failed to update quantity");
+    } catch (err) {
+      setError((err as Error)?.message || "Failed to update quantity");
     } finally {
       setBusyItemId(null);
     }
@@ -162,8 +173,8 @@ export default function CartPage() {
       const nextDraft: Record<string, string> = {};
       for (const it of json.data.items) nextDraft[it.id] = normalizeQty(it.quantity);
       setQtyDraft(nextDraft);
-    } catch {
-      setError("Failed to remove item");
+    } catch (err) {
+      setError((err as Error)?.message || "Failed to remove item");
     } finally {
       setBusyItemId(null);
     }

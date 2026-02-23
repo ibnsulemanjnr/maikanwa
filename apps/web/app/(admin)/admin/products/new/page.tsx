@@ -65,12 +65,12 @@ export default function NewProductPage() {
       setCatsLoading(true);
       try {
         const res = await fetch("/api/categories", { cache: "no-store" });
-        const data = await res.json().catch(() => [] as any);
+        const data = await res.json().catch(() => [] as unknown);
         const list = Array.isArray(data)
           ? data
-          : Array.isArray(data.results)
-            ? data.results
-            : data.data || [];
+          : Array.isArray((data as { results?: unknown[] }).results)
+            ? (data as { results: unknown[] }).results
+            : (data as { data?: unknown[] }).data || [];
         if (mounted) setCategories(list);
       } finally {
         if (mounted) setCatsLoading(false);
@@ -142,6 +142,25 @@ export default function NewProductPage() {
       if (!title.trim()) throw new Error("Title is required");
       if (!variants.length) throw new Error("At least one variant is required");
 
+      // Validate fabric-specific fields
+      if (isFabric) {
+        for (let i = 0; i < variants.length; i++) {
+          const v = variants[i];
+          if (!v.unit) throw new Error(`Variant ${i + 1}: Unit is required for fabric`);
+          if (!v.minQty || Number(v.minQty) <= 0)
+            throw new Error(`Variant ${i + 1}: Min quantity must be greater than 0`);
+          if (!v.qtyStep || Number(v.qtyStep) <= 0)
+            throw new Error(`Variant ${i + 1}: Quantity step must be greater than 0`);
+        }
+      }
+
+      // Validate prices
+      for (let i = 0; i < variants.length; i++) {
+        const v = variants[i];
+        if (!v.price || Number(v.price) < 0)
+          throw new Error(`Variant ${i + 1}: Price must be 0 or greater`);
+      }
+
       const payload = {
         title: title.trim(),
         slug: slug.trim() || undefined,
@@ -178,12 +197,15 @@ export default function NewProductPage() {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || "Failed to create product");
+      if (!res.ok) {
+        const errorMsg = data?.message || "Failed to create product";
+        throw new Error(errorMsg);
+      }
 
       router.replace("/admin/products");
       router.refresh();
-    } catch (e: any) {
-      setError(e?.message || "Failed to create product");
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to create product");
     } finally {
       setLoading(false);
     }
@@ -240,7 +262,9 @@ export default function NewProductPage() {
             <select
               className="mt-1 w-full rounded-xl border px-3 py-2"
               value={type}
-              onChange={(e) => setType(e.target.value as any)}
+              onChange={(e) =>
+                setType(e.target.value as "FABRIC" | "READY_MADE" | "CAP" | "SHOE" | "SERVICE")
+              }
             >
               <option value="FABRIC">FABRIC</option>
               <option value="READY_MADE">READY_MADE</option>
@@ -255,7 +279,7 @@ export default function NewProductPage() {
             <select
               className="mt-1 w-full rounded-xl border px-3 py-2"
               value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
+              onChange={(e) => setStatus(e.target.value as "DRAFT" | "PUBLISHED" | "ARCHIVED")}
             >
               <option value="DRAFT">DRAFT</option>
               <option value="PUBLISHED">PUBLISHED</option>
@@ -407,7 +431,9 @@ export default function NewProductPage() {
                       <select
                         className="mt-1 w-full rounded-xl border px-3 py-2"
                         value={v.unit || "YARD"}
-                        onChange={(e) => updateVariant(idx, { unit: e.target.value as any })}
+                        onChange={(e) =>
+                          updateVariant(idx, { unit: e.target.value as "METER" | "YARD" | "PIECE" })
+                        }
                       >
                         <option value="METER">METER</option>
                         <option value="YARD">YARD</option>

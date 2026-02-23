@@ -62,6 +62,22 @@ async function main() {
   const catBySlug = Object.fromEntries(cats.map((c) => [c.slug, c]));
 
   // ----------------------------
+  // Shipping Methods
+  // ----------------------------
+  await prisma.shippingMethod.upsert({
+    where: { id: "default-shipping" },
+    update: { isActive: true },
+    create: {
+      id: "default-shipping",
+      name: "Standard Delivery",
+      feeKobo: ngnToKobo(2000),
+      currency: "NGN",
+      isActive: true,
+      sortOrder: 0,
+    },
+  });
+
+  // ----------------------------
   // Fabric product
   // ----------------------------
   const fabric = await prisma.product.upsert({

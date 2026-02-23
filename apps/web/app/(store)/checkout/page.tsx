@@ -63,7 +63,7 @@ export default function CheckoutPage() {
 
   // selections
   const [shippingMethodId, setShippingMethodId] = useState<string>("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PAYSTACK");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH_ON_DELIVERY");
   const [notes, setNotes] = useState("");
 
   // logged-in address selection
@@ -140,7 +140,6 @@ export default function CheckoutPage() {
   const subtotalKobo = cart?.subtotalKobo ?? 0;
   const totalKobo = subtotalKobo + shippingKobo;
 
-  const isLoggedIn = (ctx?.addresses?.length ?? 0) > 0 || addressId.length > 0; // heuristic
   const hasSavedAddress = (ctx?.addresses?.length ?? 0) > 0;
 
   const canSubmit = useMemo(() => {
@@ -175,7 +174,10 @@ export default function CheckoutPage() {
   ]);
 
   async function submitCheckout() {
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      setError("Please fill in all required fields");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -222,7 +224,7 @@ export default function CheckoutPage() {
       }>;
 
       if (!json.ok) {
-        setError(json.error || "Checkout failed");
+        setError(json.error || "Checkout failed. Please try again.");
         return;
       }
 
@@ -244,10 +246,14 @@ export default function CheckoutPage() {
         totalKobo: json.data.totalKobo,
       });
 
-      // refresh context (cart becomes ORDERED and should no longer be active)
-      await loadCheckoutContext();
-    } catch {
-      setError("Checkout failed");
+      // Clear form to prevent resubmission
+      setNotes("");
+
+      // Don't reload context - just show success message
+    } catch (err) {
+      setError(
+        (err as Error)?.message || "Checkout failed. Please check your connection and try again.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -328,8 +334,16 @@ export default function CheckoutPage() {
             Total: {formatNgnFromKobo(codSuccess.totalKobo)}
           </p>
           <p className="mt-2 text-sm text-gray-600">
-            We’ll contact you to confirm delivery. Payment is made when you receive your order.
+            We&apos;ll contact you to confirm delivery. Payment is made when you receive your order.
           </p>
+          <div className="mt-4 flex gap-3">
+            <Link href="/orders">
+              <Button>View Orders</Button>
+            </Link>
+            <Link href="/shop">
+              <Button variant="outline">Continue Shopping</Button>
+            </Link>
+          </div>
         </div>
       )}
 
@@ -504,7 +518,7 @@ export default function CheckoutPage() {
             <p className="mt-1 text-sm text-gray-600">Choose how you want to pay.</p>
 
             <div className="mt-4 space-y-3">
-              <label className="flex items-start gap-3 cursor-pointer">
+              {/* <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="radio"
                   name="payment"
@@ -516,7 +530,7 @@ export default function CheckoutPage() {
                   <div className="font-medium text-[#111827]">Paystack (Card/Bank Transfer)</div>
                   <div className="text-sm text-gray-600">Fast confirmation (webhook verified).</div>
                 </div>
-              </label>
+              </label> */}
 
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
@@ -529,7 +543,7 @@ export default function CheckoutPage() {
                 <div>
                   <div className="font-medium text-[#111827]">Pay on Delivery</div>
                   <div className="text-sm text-gray-600">
-                    Builds trust — available in selected cities.
+                    Builds trust &mdash; available in selected cities.
                   </div>
                 </div>
               </label>
@@ -583,17 +597,25 @@ export default function CheckoutPage() {
           </div>
 
           <div className="mt-6 space-y-3">
-            <Button className="w-full" disabled={!canSubmit || submitting} onClick={submitCheckout}>
-              {submitting
-                ? "Processing..."
-                : paymentMethod === "PAYSTACK"
-                  ? "Pay with Paystack"
-                  : "Place Order (Pay on Delivery)"}
-            </Button>
+            {!codSuccess && (
+              <>
+                <Button
+                  className="w-full"
+                  disabled={!canSubmit || submitting}
+                  onClick={submitCheckout}
+                >
+                  {submitting
+                    ? "Processing..."
+                    : paymentMethod === "PAYSTACK"
+                      ? "Pay with Paystack"
+                      : "Place Order (Pay on Delivery)"}
+                </Button>
 
-            <p className="text-xs text-gray-500">
-              Totals are verified on the server. Payments are confirmed by webhook (Paystack).
-            </p>
+                <p className="text-xs text-gray-500">
+                  Totals are verified on the server. Payments are confirmed by webhook (Paystack).
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>

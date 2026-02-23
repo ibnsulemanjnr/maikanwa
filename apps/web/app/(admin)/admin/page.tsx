@@ -6,11 +6,7 @@ import Link from "next/link";
 import { StatsCard } from "@/components/admin";
 import { Spinner, Button } from "@/components/ui";
 
-type ProductsResponse = { results: any[] } | { data: any[] } | any[];
-
-type CategoriesResponse = { results: any[] } | { data: any[] } | any[];
-
-function countFromResponse(res: any): number {
+function countFromResponse(res: unknown): number {
   if (!res) return 0;
   if (Array.isArray(res)) return res.length;
   if (Array.isArray(res.results)) return res.results.length;
@@ -33,20 +29,27 @@ export default function AdminHome() {
     async function load() {
       setLoading(true);
       try {
-        const [productsRes, categoriesRes] = await Promise.all([
+        const [productsRes, categoriesRes, ordersRes] = await Promise.all([
           fetch("/api/products", { cache: "no-store" }).then((r) => r.json()),
           fetch("/api/categories", { cache: "no-store" }).then((r) => r.json()),
+          fetch("/api/admin/orders", { cache: "no-store" }).then((r) => r.json()),
         ]);
 
         if (!mounted) return;
+
+        const orders = ordersRes?.results || [];
+        const totalRevenue = orders.reduce(
+          (sum: number, o: { total?: string | number }) =>
+            sum + (parseFloat(String(o.total || 0)) || 0),
+          0,
+        );
 
         setStats((s) => ({
           ...s,
           products: countFromResponse(productsRes),
           categories: countFromResponse(categoriesRes),
-          // orders/revenue stay placeholder until EPIC 6
-          orders: 0,
-          revenue: "₦0",
+          orders: orders.length,
+          revenue: `₦${totalRevenue.toLocaleString()}`,
         }));
       } catch {
         // keep default zeros

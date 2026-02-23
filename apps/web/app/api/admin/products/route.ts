@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { apiError } from "@/lib/utils/apiResponse";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,7 @@ const CreateProductSchema = z.object({
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).default("DRAFT"),
   currency: z.string().max(8).default("NGN"),
   basePrice: z.coerce.number().optional(),
-  attributes: z.any().optional(),
+  attributes: z.unknown().optional(),
 
   categoryIds: z.array(z.string().uuid()).default([]),
   imageUrls: z.array(z.string().url()).default([]),
@@ -62,14 +63,14 @@ export async function GET(req: NextRequest) {
       ...(q
         ? {
             OR: [
-              { title: { contains: q, mode: "insensitive" } },
-              { slug: { contains: q, mode: "insensitive" } },
-              { variants: { some: { sku: { contains: q, mode: "insensitive" } } } },
+              { title: { contains: q, mode: "insensitive" as const } },
+              { slug: { contains: q, mode: "insensitive" as const } },
+              { variants: { some: { sku: { contains: q, mode: "insensitive" as const } } } },
             ],
           }
         : {}),
-      ...(type ? { type: type as any } : {}),
-      ...(status ? { status: status as any } : {}),
+      ...(type ? { type: type as "FABRIC" | "READY_MADE" | "CAP" | "SHOE" | "SERVICE" } : {}),
+      ...(status ? { status: status as "DRAFT" | "PUBLISHED" | "ARCHIVED" } : {}),
     },
     include: {
       images: { orderBy: { sortOrder: "asc" } },
@@ -84,34 +85,34 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  await requireAdmin(req);
+  try {
+    await requireAdmin(req);
 
-  const body = CreateProductSchema.parse(await req.json());
+    const body = CreateProductSchema.parse(await req.json());
 
-  const finalSlug = body.slug?.trim() ? slugify(body.slug) : slugify(body.title);
+    const finalSlug = body.slug?.trim() ? slugify(body.slug) : slugify(body.title);
 
-  // FABRIC variant rules
-  if (body.type === "FABRIC") {
-    for (const v of body.variants) {
-      if (!v.unit || v.minQty === undefined || v.qtyStep === undefined) {
-        return NextResponse.json(
-          { message: "Fabric variants must include unit, minQty, and qtyStep." },
-          { status: 400 },
-        );
+    // FABRIC variant rules
+    if (body.type === "FABRIC") {
+      for (const v of body.variants) {
+        if (!v.unit || v.minQty === undefined || v.qtyStep === undefined) {
+          return NextResponse.json(
+            { message: "Fabric variants must include unit, minQty, and qtyStep." },
+            { status: 400 },
+          );
+        }
       }
     }
-  }
 
-  // Ensure slug unique
-  const exists = await prisma.product.findUnique({ where: { slug: finalSlug } });
-  if (exists) {
-    return NextResponse.json(
-      { message: "Slug already exists. Please change it." },
-      { status: 409 },
-    );
-  }
+    // Ensure slug unique
+    const exists = await prisma.product.findUnique({ where: { slug: finalSlug } });
+    if (exists) {
+      return NextResponse.json(
+        { message: "Slug already exists. Please change it." },
+        { status: 409 },
+      );
+    }
 
-  try {
     const product = await prisma.product.create({
       data: {
         title: body.title,
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
         type: body.type,
         status: body.status,
         currency: body.currency,
-        basePrice: body.basePrice !== undefined ? body.basePrice : null,
+        basePriceKobo: body.basePrice !== undefined ? Math.round(body.basePrice * 100) : null,
         attributes: body.attributes ?? null,
 
         categories: body.categoryIds.length
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
           create: body.variants.map((v) => ({
             title: v.title ?? null,
             sku: v.sku ?? null,
-            price: v.price,
+            priceKobo: Math.round(v.price * 100),
             isActive: v.isActive ?? true,
 
             size: v.size ?? null,
@@ -171,11 +172,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ product }, { status: 201 });
-  } catch (e: any) {
-    // common: SKU unique violations
-    return NextResponse.json(
-      { message: e?.message || "Failed to create product" },
-      { status: 400 },
-    );
+  } catch (error) {
+    return apiError(error, "Invalid request");
   }
 }

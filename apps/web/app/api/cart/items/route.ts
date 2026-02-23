@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 const GUEST_KEY_COOKIE = "mk_guest";
 
 const SESSION_COOKIE_CANDIDATES = [
+  "mkw_session",
   "session",
   "sessionToken",
   "maikanwa_session",
@@ -232,17 +233,23 @@ async function getOrCreateCart(req: NextRequest) {
     return { cartId: userCart.id, guestKeyToSet: existingGuestKey ? null : guestKey };
   }
 
-  // Guest: cart by guestKey
-  let cart = await prisma.cart.findFirst({
-    where: { guestKey, userId: null, status: CartStatus.ACTIVE },
-    select: { id: true },
-    orderBy: { updatedAt: "desc" },
+  // Guest: find any cart with this guestKey (regardless of status)
+  let cart = await prisma.cart.findUnique({
+    where: { guestKey },
+    select: { id: true, status: true },
   });
 
   if (!cart) {
+    // Create new cart
     cart = await prisma.cart.create({
       data: { guestKey, status: CartStatus.ACTIVE, currency: "NGN" },
-      select: { id: true },
+      select: { id: true, status: true },
+    });
+  } else if (cart.status !== CartStatus.ACTIVE) {
+    // Reactivate if cart exists but not active
+    await prisma.cart.update({
+      where: { id: cart.id },
+      data: { status: CartStatus.ACTIVE },
     });
   }
 

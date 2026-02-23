@@ -17,6 +17,7 @@ export const runtime = "nodejs";
 
 const GUEST_KEY_COOKIE = "mk_guest";
 const SESSION_COOKIE_CANDIDATES = [
+  "mkw_session",
   "session",
   "sessionToken",
   "maikanwa_session",
@@ -65,18 +66,6 @@ function parsePaymentMethod(v: unknown): OrderPaymentMethod {
 
 function parseString(v: unknown): string | null {
   return typeof v === "string" && v.trim().length ? v.trim() : null;
-}
-
-function parseDecimalQty(input: unknown): Prisma.Decimal | null {
-  if (input === null || input === undefined) return null;
-  if (typeof input === "number" && Number.isFinite(input))
-    return new Prisma.Decimal(input.toString());
-  if (typeof input === "string" && input.trim().length) {
-    const s = input.trim();
-    if (!/^\d+(\.\d+)?$/.test(s)) return null;
-    return new Prisma.Decimal(s);
-  }
-  return null;
 }
 
 function isIntegerDecimal(d: Prisma.Decimal): boolean {
@@ -304,16 +293,13 @@ export async function POST(req: NextRequest) {
       });
       if (!addr) return json({ ok: false, error: "Invalid addressId" }, { status: 400 });
       addressSnapshot = buildAddressSnapshotFromRecord(addr) as Prisma.InputJsonValue;
-    } else if (!userId) {
-      // guest address input
+    } else {
+      // guest address input OR logged-in user without saved address
       const addr =
         b.address && typeof b.address === "object" ? (b.address as Record<string, unknown>) : null;
       const addressLine1 = addr ? parseString(addr.addressLine1) : null;
       if (!addressLine1) {
-        return json(
-          { ok: false, error: "Guest checkout requires address.addressLine1" },
-          { status: 400 },
-        );
+        return json({ ok: false, error: "Address is required" }, { status: 400 });
       }
 
       addressSnapshot = {
@@ -357,7 +343,10 @@ export async function POST(req: NextRequest) {
     const orderItemsData: Prisma.OrderItemCreateManyOrderInput[] = [];
 
     // Reserve updates collected
-    const reserveOps: Array<ReturnType<typeof prisma.inventory.update>> = [];
+    const reserveOps: Array<{
+      variantId: string;
+      qty: Prisma.Decimal;
+    }> = [];
 
     for (const cartItem of cart.items) {
       const variant = cartItem.variant;
@@ -391,12 +380,10 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        reserveOps.push(
-          prisma.inventory.update({
-            where: { variantId: variant.id },
-            data: { reserved: { increment: qty } },
-          }),
-        );
+        reserveOps.push({
+          variantId: variant.id,
+          qty,
+        });
       }
 
       const unitPriceKobo = variant.priceKobo;
@@ -428,9 +415,10 @@ export async function POST(req: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       // reserve stock first (so concurrent checkout fails fast)
       for (const op of reserveOps) {
-        // re-run using tx
-        // @ts-expect-error Prisma returns bound delegate; safe to rebuild below
-        await tx.inventory.update(op.args);
+        await tx.inventory.update({
+          where: { variantId: op.variantId },
+          data: { reserved: { increment: op.qty } },
+        });
       }
 
       const order = await tx.order.create({
