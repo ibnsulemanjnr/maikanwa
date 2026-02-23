@@ -4,7 +4,9 @@ import { Button } from "@/components/ui";
 import { CategoryCard } from "@/components/store";
 import { ProductStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-export const revalidate = 60;
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const CATEGORY_FALLBACK_IMAGE_BY_SLUG: Record<string, string> = {
   fabrics: "/images/categories/fabrics.jpg",
@@ -38,7 +40,6 @@ async function getHomepageCategories() {
     }),
   );
 
-  // keep homepage layout clean (4 cards)
   return withCounts.slice(0, 4);
 }
 
@@ -50,7 +51,6 @@ export default async function HomePage() {
       {/* HERO */}
       <section className="bg-gradient-to-br from-[#1E2A78] via-[#2A3A88] to-[#1E2A78] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
-          {/* Centered hero content */}
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
               Kayan inganci + dinki na zamani

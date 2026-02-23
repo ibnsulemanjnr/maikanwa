@@ -1,3 +1,7 @@
+// apps/web/app/(store)/layout.tsx
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import Navbar from "@/components/store/Navbar";
 import Footer from "@/components/store/Footer";
 
