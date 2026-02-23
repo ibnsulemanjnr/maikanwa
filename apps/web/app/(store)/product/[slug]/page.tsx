@@ -141,6 +141,15 @@ export default function ProductDetailPage() {
     });
   }, [product]);
 
+  // ✅ normalize null altText -> undefined to match ProductImageGallery props
+  const galleryImages = useMemo(() => {
+    const imgs = product?.images ?? [];
+    return imgs.map((img) => ({
+      url: img.url,
+      altText: img.altText ?? undefined,
+    }));
+  }, [product]);
+
   async function addToCart(navigateTo: "cart" | "none" = "cart") {
     if (!product || !selectedVariant) return;
 
@@ -186,8 +195,8 @@ export default function ProductDetailPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div>
-          {product.images.length > 0 ? (
-            <ProductImageGallery images={product.images} />
+          {galleryImages.length > 0 ? (
+            <ProductImageGallery images={galleryImages} />
           ) : (
             <div className="aspect-square bg-gray-200 rounded-lg flex items-center justify-center">
               <span className="text-gray-400">No image</span>
