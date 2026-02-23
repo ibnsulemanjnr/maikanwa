@@ -15,8 +15,6 @@ interface Product {
   variants?: { priceKobo: number }[];
 }
 
-type ProductsResponse = { results: Product[] } | { data: Product[] } | Product[];
-
 type UnknownRecord = Record<string, unknown>;
 
 function isRecord(v: unknown): v is UnknownRecord {
@@ -36,6 +34,24 @@ function normalizeProductsPayload(payload: unknown): Product[] {
   }
 
   return [];
+}
+
+function extractErrorMessage(payload: unknown): string | null {
+  if (!payload) return null;
+
+  if (isRecord(payload)) {
+    const msg = payload["message"];
+    if (typeof msg === "string" && msg.trim()) return msg;
+
+    // common API patterns
+    const detail = payload["detail"];
+    if (typeof detail === "string" && detail.trim()) return detail;
+
+    const error = payload["error"];
+    if (typeof error === "string" && error.trim()) return error;
+  }
+
+  return null;
 }
 
 export default function AdminProductsPage() {
@@ -60,17 +76,13 @@ export default function AdminProductsPage() {
         return;
       }
 
-      const data: ProductsResponse = await res.json().catch(() => [] as unknown);
+      const raw: unknown = await res.json().catch(() => null);
 
       if (!res.ok) {
-        const msg =
-          isRecord(data) && typeof data["message"] === "string"
-            ? (data["message"] as string)
-            : "Failed to load products";
-        throw new Error(msg);
+        throw new Error(extractErrorMessage(raw) || "Failed to load products");
       }
 
-      setProducts(normalizeProductsPayload(data));
+      setProducts(normalizeProductsPayload(raw));
     } catch (err) {
       setError(
         (err as Error)?.message ||
