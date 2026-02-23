@@ -36,7 +36,11 @@ type VerifyData = VerifyPaid | VerifyPending | VerifyFailed;
 type ApiResponse<T> = { ok: true; data: T } | { ok: false; error?: string };
 
 function isPaidVerify(d: VerifyData | null): d is VerifyPaid {
-  return !!d && d.verified === true && (d.paid === true || d.alreadyPaid === true);
+  if (!d || d.verified !== true) return false;
+
+  const alreadyPaid = "alreadyPaid" in d && (d as { alreadyPaid?: boolean }).alreadyPaid === true;
+
+  return d.paid === true || alreadyPaid;
 }
 
 function isPendingVerify(d: VerifyData | null): d is VerifyPending {
@@ -80,16 +84,18 @@ export default function CheckoutSuccessPage() {
 
       setData(json.data);
 
-      // Optional: if backend returns verified:false in ok:true, surface it as an error
+      // If backend returns verified:false in ok:true, surface it as an error
       if (json.data.verified === false) {
         setError(json.data.message || "Payment not verified yet. Please try again.");
       }
 
       // If paid, we can nudge user to account/orders page.
-      if (
+      const alreadyPaid =
         json.data.verified === true &&
-        (json.data.paid === true || json.data.alreadyPaid === true)
-      ) {
+        "alreadyPaid" in json.data &&
+        (json.data as { alreadyPaid?: boolean }).alreadyPaid === true;
+
+      if (json.data.verified === true && (json.data.paid === true || alreadyPaid)) {
         // router.push(`/account/orders/${json.data.orderId}`);
       }
     } catch (err) {
