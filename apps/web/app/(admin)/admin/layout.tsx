@@ -1,60 +1,123 @@
+// apps/web/app/(admin)/admin/layout.tsx
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminHeader from "@/components/admin/AdminHeader";
 
-const navItems = [
-  { href: "/admin", label: "Dashboard", icon: "📊" },
-  { href: "/admin/products", label: "Products", icon: "📦" },
-  { href: "/admin/orders", label: "Orders", icon: "🛒" },
-  { href: "/admin/tailoring", label: "Tailoring", icon: "✂️" },
-  { href: "/admin/reports", label: "Reports", icon: "📈" },
-];
+type MeResponse =
+  | { user: null }
+  | {
+      user: {
+        id: string;
+        email: string;
+        role: "CUSTOMER" | "ADMIN";
+        fullName: string | null;
+        phone: string | null;
+      };
+    };
+
+function titleFromPath(path: string) {
+  if (path === "/admin") return "Dashboard";
+  if (path.startsWith("/admin/products")) return "Products";
+  if (path.startsWith("/admin/orders")) return "Orders";
+  if (path.startsWith("/admin/tailoring")) return "Tailoring";
+  if (path.startsWith("/admin/reports")) return "Reports";
+  return "Admin";
+}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
 
+  const [loading, setLoading] = useState(true);
+  const [me, setMe] = useState<MeResponse>({ user: null });
+
+  // mobile drawer
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const title = useMemo(() => titleFromPath(pathname), [pathname]);
+  const user = (me as any).user ?? null;
+
+  async function loadMe() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      const data = (await res.json()) as MeResponse;
+      setMe(data);
+
+      // Guard admin area
+      if (!data.user) {
+        router.replace(`/auth/login?next=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      if (data.user.role !== "ADMIN") {
+        router.replace("/account");
+        return;
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // close sidebar when route changes
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  if (loading) {
+    return (
+      <div className="min-h-dvh bg-gray-50">
+        <div className="p-6 text-gray-600">Loading admin...</div>
+      </div>
+    );
+  }
+
+  // if redirected, avoid flashing admin UI
+  if (!user || user.role !== "ADMIN") return null;
+
   return (
-    <div className="min-h-screen bg-[#FAFAFA]">
-      <header className="bg-white border-b border-[#E5E7EB] sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/admin" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-[#1E2A78] rounded-lg flex items-center justify-center text-white font-bold">
-                M
-              </div>
-              <span className="text-xl font-bold text-[#111827]">Maikanwa Admin</span>
-            </Link>
-            <Link href="/" className="text-sm text-gray-600 hover:text-[#1E2A78]">
-              ← Back to Store
-            </Link>
-          </div>
+    <div className="min-h-dvh bg-gray-50">
+      <div className="flex">
+        {/* Desktop sidebar */}
+        <div className="hidden md:block">
+          <AdminSidebar />
         </div>
-      </header>
 
-      <div className="flex max-w-7xl mx-auto">
-        <aside className="w-64 bg-white border-r border-[#E5E7EB] min-h-[calc(100vh-4rem)] p-4">
-          <nav className="space-y-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
-                  pathname === item.href
-                    ? "bg-[#1E2A78] text-white"
-                    : "text-gray-700 hover:bg-[#FAFAFA]",
-                )}
-              >
-                <span className="text-lg">{item.icon}</span>
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </aside>
+        {/* Mobile drawer sidebar */}
+        {sidebarOpen && (
+          <div className="md:hidden fixed inset-0 z-50">
+            {/* Overlay */}
+            <button
+              className="absolute inset-0 bg-black/40"
+              aria-label="Close sidebar overlay"
+              onClick={() => setSidebarOpen(false)}
+            />
+            {/* Drawer */}
+            <div className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl">
+              <AdminSidebar />
+            </div>
+          </div>
+        )}
 
-        <main className="flex-1 p-8">{children}</main>
+        <div className="flex-1 min-w-0">
+          <AdminHeader
+            title={title}
+            user={user}
+            onToggleSidebar={() => setSidebarOpen((v) => !v)}
+          />
+          <main className="p-4 md:p-6">{children}</main>
+        </div>
       </div>
     </div>
   );

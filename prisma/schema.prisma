@@ -7,6 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// -----------------------------
+// Enums
+// -----------------------------
 enum ProductType {
   FABRIC
   READY_MADE
@@ -27,10 +30,97 @@ enum LengthUnit {
   PIECE
 }
 
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+enum CartStatus {
+  ACTIVE
+  ORDERED
+  ABANDONED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderPaymentMethod {
+  PAYSTACK
+  CASH_ON_DELIVERY
+}
+
+enum OrderPaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+  PARTIALLY_PAID
+}
+
+enum PaymentProvider {
+  PAYSTACK
+  CASH_ON_DELIVERY
+}
+
+enum PaymentStatus {
+  INITIALIZED
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum WebhookProvider {
+  PAYSTACK
+}
+
+enum TailoringServiceType {
+  SEW_FROM_FABRIC
+  ALTERATION
+  CUSTOM_REQUEST
+}
+
+enum TailoringStatus {
+  MEASUREMENT_PENDING
+  CUTTING
+  SEWING
+  QA
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum AuditEntityType {
+  PRODUCT
+  VARIANT
+  INVENTORY
+  ORDER
+  TAILORING_JOB
+  CATEGORY
+  USER
+  PAYMENT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  STOCK_ADJUSTMENT
+}
+
+// -----------------------------
+// Category + Products
+// -----------------------------
 model Category {
   id        String     @id @default(uuid())
   name      String     @db.VarChar(120)
   slug      String     @unique @db.VarChar(140)
+
   parentId  String?
   parent    Category?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
   children  Category[] @relation("CategoryParent")
@@ -48,25 +138,30 @@ model Category {
 }
 
 model Product {
-  id          String        @id @default(uuid())
-  type        ProductType
-  status      ProductStatus @default(DRAFT)
+  id            String        @id @default(uuid())
+  type          ProductType
+  status        ProductStatus @default(DRAFT)
 
-  title       String        @db.VarChar(180)
-  slug        String        @unique @db.VarChar(200)
-  description String?
-  currency    String        @default("NGN") @db.VarChar(8)
-  basePrice   Decimal?      @db.Decimal(12, 2)
+  title         String        @db.VarChar(180)
+  slug          String        @unique @db.VarChar(200)
+  description   String?
 
-  attributes  Json?
-  isFeatured  Boolean       @default(false)
+  currency      String        @default("NGN") @db.VarChar(8)
 
-  images      ProductImage[]
-  variants    ProductVariant[]
-  categories  Category[]    @relation("ProductCategories")
+  // ✅ Money uses minor units (kobo). Avoid floats/decimals for currency.
+  basePriceKobo Int?
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  attributes    Json?
+  isFeatured    Boolean       @default(false)
+
+  images        ProductImage[]
+  variants      ProductVariant[]
+  categories    Category[]    @relation("ProductCategories")
+
+  orderItems    OrderItem[]
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([type, status])
   @@index([status, isFeatured])
@@ -81,9 +176,13 @@ model ProductImage {
   altText   String? @db.VarChar(160)
   sortOrder Int     @default(0)
 
+  // Primary image selection (enforced in app logic: only one per product)
+  isPrimary Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   @@index([productId, sortOrder])
+  @@index([productId, isPrimary])
 }
 
 model ProductVariant {
@@ -97,30 +196,444 @@ model ProductVariant {
   size      String? @db.VarChar(40)
   color     String? @db.VarChar(40)
 
+  // FABRIC rules (meter/yard + fractional steps)
   unit      LengthUnit?
   minQty    Decimal? @db.Decimal(10, 2)
   qtyStep   Decimal? @db.Decimal(10, 2)
 
-  price     Decimal  @db.Decimal(12, 2)
+  // ✅ Money in kobo
+  priceKobo Int
+
   isActive  Boolean  @default(true)
 
   inventory Inventory?
+  adjustments InventoryAdjustment[]
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([productId, isActive])
   @@index([size, color])
+  @@index([sku])
 }
 
 model Inventory {
+  id         String         @id @default(uuid())
+  variantId  String         @unique
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  // ✅ Use Decimal to support fabric stock (e.g., 25.50 meters)
+  quantity   Decimal        @default(0) @db.Decimal(12, 2)
+  reserved   Decimal        @default(0) @db.Decimal(12, 2)
+
+  lowStockAt Decimal        @default(5) @db.Decimal(12, 2)
+
+  updatedAt  DateTime       @updatedAt
+}
+
+// -----------------------------
+// Auth
+// -----------------------------
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique @db.VarChar(180)
+  passwordHash String   @db.VarChar(255)
+  fullName     String?  @db.VarChar(120)
+  phone        String?  @db.VarChar(32)
+  role         UserRole @default(CUSTOMER)
+  isActive     Boolean  @default(true)
+
+  sessions     Session[]
+  resetTokens  PasswordResetToken[]
+
+  // Commerce relations
+  carts        Cart[]
+  orders       Order[]
+  addresses    Address[]
+
+  // Ops/audit
+  inventoryAdjustments InventoryAdjustment[]
+  adminAuditLogs        AdminAuditLog[]
+  uploadedTailoringAttachments TailoringAttachment[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role])
+  @@index([createdAt])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // store SHA256 hex of the session token (never store raw token)
+  tokenHash String   @unique @db.VarChar(64)
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  ip        String?  @db.VarChar(64)
+  userAgent String?  @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+// -----------------------------
+// Address Book
+// -----------------------------
+model Address {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label        String?  @db.VarChar(60)
+  fullName     String?  @db.VarChar(120)
+  phone        String?  @db.VarChar(32)
+
+  country      String   @default("NG") @db.VarChar(2)
+  state        String?  @db.VarChar(80)
+  city         String?  @db.VarChar(80)
+  addressLine1 String   @db.VarChar(200)
+  addressLine2 String?  @db.VarChar(200)
+  landmark     String?  @db.VarChar(120)
+  postalCode   String?  @db.VarChar(20)
+
+  isDefault    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId, isDefault])
+  @@index([userId, isActive])
+}
+
+// -----------------------------
+// Shipping
+// -----------------------------
+model ShippingMethod {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(120)
+
+  // flat/city-based/state-based rules
+  rules     Json?
+
+  feeKobo   Int      @default(0)
+  currency  String   @default("NGN") @db.VarChar(8)
+
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  orders    Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+// -----------------------------
+// Cart
+// -----------------------------
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // supports guest cart + merge on login
+  guestKey  String?    @unique @db.VarChar(80)
+
+  status    CartStatus @default(ACTIVE)
+  currency  String     @default("NGN") @db.VarChar(8)
+
+  items     CartItem[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId, status])
+  @@index([status, updatedAt])
+}
+
+model CartItem {
   id        String         @id @default(uuid())
-  variantId String         @unique
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
-  quantity  Int            @default(0)
-  reserved  Int            @default(0)
-  lowStockAt Int           @default(5)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
 
-  updatedAt DateTime       @updatedAt
+  // ✅ Decimal supports fabric lengths (e.g., 1.50 yards)
+  quantity  Decimal        @default(1) @db.Decimal(12, 2)
+
+  // "fabric + sew" link inside cart:
+  // service item can attach to a fabric item (or vice versa)
+  attachedToCartItemId String?
+  attachedToCartItem   CartItem?  @relation("CartItemAttach", fields: [attachedToCartItemId], references: [id], onDelete: SetNull)
+  attachedItems        CartItem[] @relation("CartItemAttach")
+
+  meta      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cartId])
+  @@index([variantId])
+  @@index([attachedToCartItemId])
+}
+
+// -----------------------------
+// Orders
+// -----------------------------
+model Order {
+  id        String      @id @default(uuid())
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  status    OrderStatus @default(PENDING_PAYMENT)
+
+  currency  String      @default("NGN") @db.VarChar(8)
+
+  // ✅ Pay-on-delivery support (trust feature)
+  paymentMethod OrderPaymentMethod @default(PAYSTACK)
+  paymentStatus OrderPaymentStatus @default(UNPAID)
+  amountPaidKobo Int               @default(0)
+
+  subtotalKobo Int @default(0)
+  shippingKobo Int @default(0)
+  totalKobo    Int @default(0)
+
+  // Optional link + snapshot
+  shippingMethodId String?
+  shippingMethod   ShippingMethod? @relation(fields: [shippingMethodId], references: [id], onDelete: SetNull)
+
+  addressSnapshot        Json?
+  shippingMethodSnapshot Json?
+
+  notes     String?   @db.VarChar(500)
+
+  items     OrderItem[]
+  payments  PaymentTransaction[]
+  tailoringJobs TailoringJob[]
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([paymentMethod, paymentStatus])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  // purchase-time snapshots (do not mutate after order)
+  productType ProductType
+  title       String    @db.VarChar(180)
+  sku         String?   @db.VarChar(80)
+
+  // ✅ quantity supports fabric lengths
+  quantity     Decimal @db.Decimal(12, 2)
+
+  unitPriceKobo Int
+  lineTotalKobo Int
+
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  // Tailoring link back-relations
+  serviceTailoringLink TailoringLink?  @relation("TailoringServiceItem")
+  fabricTailoringLinks TailoringLink[] @relation("TailoringFabricItem")
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+// -----------------------------
+// Payments (Paystack + COD tracking)
+// -----------------------------
+model PaymentTransaction {
+  id         String         @id @default(uuid())
+  orderId    String
+  order      Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  provider   PaymentProvider @default(PAYSTACK)
+  status     PaymentStatus   @default(INITIALIZED)
+
+  // Always set a unique reference (Paystack provides; COD can be generated server-side)
+  reference  String          @unique @db.VarChar(120)
+
+  amountKobo Int
+  currency   String          @default("NGN") @db.VarChar(8)
+
+  initializedAt DateTime     @default(now())
+  paidAt        DateTime?
+  failedAt      DateTime?
+
+  rawInitPayload     Json?
+  rawWebhookPayload  Json?
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([orderId, createdAt])
+  @@index([status, createdAt])
+  @@index([provider, createdAt])
+}
+
+model WebhookEvent {
+  id         String          @id @default(uuid())
+  provider   WebhookProvider @default(PAYSTACK)
+
+  // Store Paystack event ID if present; otherwise deterministic idempotency key
+  eventId    String          @unique @db.VarChar(160)
+
+  reference  String?         @db.VarChar(120)
+  eventType  String?         @db.VarChar(80)
+
+  payload    Json
+  receivedAt DateTime        @default(now())
+
+  @@index([provider, receivedAt])
+  @@index([reference])
+}
+
+// -----------------------------
+// Tailoring
+// -----------------------------
+model TailoringJob {
+  id            String              @id @default(uuid())
+  orderId       String
+  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  serviceType   TailoringServiceType
+  status        TailoringStatus     @default(MEASUREMENT_PENDING)
+
+  notes         String?             @db.VarChar(800)
+  measurements  Json?
+  eventDate     DateTime?
+  fitPreference String?             @db.VarChar(80)
+
+  // when status passes MEASUREMENT_PENDING, lock edits in app logic
+  lockedAt      DateTime?
+
+  attachments   TailoringAttachment[]
+  link          TailoringLink?
+
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([orderId, createdAt])
+  @@index([status, updatedAt])
+}
+
+model TailoringAttachment {
+  id             String       @id @default(uuid())
+  tailoringJobId String
+  tailoringJob   TailoringJob @relation(fields: [tailoringJobId], references: [id], onDelete: Cascade)
+
+  url            String
+  mimeType       String?      @db.VarChar(80)
+  sizeBytes      Int?
+
+  uploadedByUserId String?
+  uploadedByUser   User?      @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt      DateTime     @default(now())
+
+  @@index([tailoringJobId, createdAt])
+  @@index([uploadedByUserId])
+}
+
+model TailoringLink {
+  id             String       @id @default(uuid())
+  tailoringJobId String       @unique
+  tailoringJob   TailoringJob @relation(fields: [tailoringJobId], references: [id], onDelete: Cascade)
+
+  // must link to service OrderItem
+  serviceOrderItemId String
+  serviceOrderItem   OrderItem @relation("TailoringServiceItem", fields: [serviceOrderItemId], references: [id], onDelete: Restrict)
+
+  // optionally link to fabric OrderItem (required by app logic when SEW_FROM_FABRIC)
+  fabricOrderItemId  String?
+  fabricOrderItem    OrderItem? @relation("TailoringFabricItem", fields: [fabricOrderItemId], references: [id], onDelete: Restrict)
+
+  createdAt       DateTime     @default(now())
+
+  @@unique([serviceOrderItemId])
+  @@index([fabricOrderItemId])
+}
+
+// -----------------------------
+// Inventory Ops Logging (Admin)
+// -----------------------------
+model InventoryAdjustment {
+  id         String         @id @default(uuid())
+  variantId  String
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  // ✅ Decimal to support fabric adjustments (e.g., -2.50 meters)
+  deltaQty   Decimal        @db.Decimal(12, 2)
+
+  reason     String?        @db.VarChar(160)
+
+  actorUserId String?
+  actorUser   User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime       @default(now())
+
+  @@index([variantId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+// -----------------------------
+// Admin Audit Log
+// -----------------------------
+model AdminAuditLog {
+  id          String         @id @default(uuid())
+  actorUserId String
+  actorUser   User           @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  entityType  AuditEntityType
+  entityId    String         @db.VarChar(80)
+  action      AuditAction
+
+  before      Json?
+  after       Json?
+
+  createdAt   DateTime       @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
 }

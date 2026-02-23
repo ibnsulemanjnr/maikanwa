@@ -10,8 +10,18 @@ interface Product {
   title: string;
   type: string;
   status: string;
-  basePrice: number;
-  variants: { price: number }[];
+  basePrice?: number | null;
+  variants?: { price: number }[];
+}
+
+type ProductsResponse = { results: Product[] } | { data: Product[] } | Product[];
+
+function normalizeProductsPayload(payload: any): Product[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.results)) return payload.results;
+  if (Array.isArray(payload.data)) return payload.data;
+  return [];
 }
 
 export default function AdminProductsPage() {
@@ -20,21 +30,39 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  async function loadProducts() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/products", { cache: "no-store", credentials: "include" });
+
+      // If unauthorized (shouldn't happen due to admin layout guard), handle gracefully
+      if (res.status === 401 || res.status === 403) {
+        setError("Unauthorized. Please login as admin.");
+        setProducts([]);
+        return;
+      }
+
+      const data: ProductsResponse = await res.json().catch(() => [] as any);
+      if (!res.ok) {
+        throw new Error((data as any)?.message || "Failed to load products");
+      }
+
+      setProducts(normalizeProductsPayload(data));
+    } catch (err: any) {
+      setError(
+        err?.message ||
+          "Database connection error. Please check your .env file and run migrations.",
+      );
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    fetch("/api/products")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.ok) {
-          setProducts(data.data);
-        } else {
-          setError(data.error || "Failed to load products");
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError("Database connection error. Please check your .env file and run migrations.");
-        setLoading(false);
-      });
+    loadProducts();
   }, []);
 
   if (loading)
@@ -51,7 +79,13 @@ export default function AdminProductsPage() {
           <h1 className="text-2xl font-bold text-[#111827]">Products</h1>
           <p className="text-gray-600 mt-1">Manage your product catalog</p>
         </div>
-        <Button onClick={() => router.push("/admin/products/new")}>Add Product</Button>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={loadProducts}>
+            Refresh
+          </Button>
+          <Button onClick={() => router.push("/admin/products/new")}>Add Product</Button>
+        </div>
       </div>
 
       {error && (
@@ -60,7 +94,7 @@ export default function AdminProductsPage() {
           <div className="mt-2 text-sm">
             Run:{" "}
             <code className="bg-black/10 px-2 py-1 rounded">
-              npm run prisma:migrate && npm run prisma:seed
+              npm run db:migrate && npm run db:seed
             </code>
           </div>
         </Alert>
@@ -75,8 +109,12 @@ export default function AdminProductsPage() {
             {
               key: "price",
               label: "Price",
-              render: (row) =>
-                `₦${(row.variants[0]?.price || row.basePrice || 0).toLocaleString()}`,
+              render: (row: Product) => {
+                const vPrice = row.variants?.[0]?.price;
+                const base = row.basePrice ?? 0;
+                const price = typeof vPrice === "number" ? vPrice : Number(base) || 0;
+                return `₦${price.toLocaleString()}`;
+              },
             },
           ]}
           data={products}

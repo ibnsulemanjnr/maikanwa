@@ -2,9 +2,33 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Input, Button, Alert } from "@/components/ui";
 
+type LoginResponse = {
+  user?: {
+    id: string;
+    email: string;
+    role: "CUSTOMER" | "ADMIN";
+    fullName: string | null;
+    phone: string | null;
+  };
+  message?: string;
+};
+
+function safeNext(next: string | null) {
+  if (!next) return null;
+  // prevent open-redirects: only allow internal paths
+  if (!next.startsWith("/")) return null;
+  return next;
+}
+
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const nextParam = safeNext(searchParams.get("next"));
+
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -14,10 +38,34 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as LoginResponse;
+
+      if (!res.ok) throw new Error(data?.message || "Login failed");
+      if (!data.user) throw new Error("Login failed");
+
+      // Priority:
+      // 1) next param (if valid internal path)
+      // 2) role-based default
+      const target = nextParam ?? (data.user.role === "ADMIN" ? "/admin" : "/account");
+
+      router.replace(target);
+      router.refresh();
+    } catch (err: any) {
+      setError(err?.message || "Login failed");
+    } finally {
       setIsLoading(false);
-      setError("Login functionality coming soon");
-    }, 1000);
+    }
   };
 
   return (
@@ -61,6 +109,12 @@ export default function LoginPage() {
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
+
+          <div className="mt-4 text-center">
+            <Link href="/auth/forgot-password" className="text-gray-600 hover:underline text-sm">
+              Forgot password?
+            </Link>
+          </div>
 
           <div className="mt-8 text-center">
             <span className="text-gray-600">Don&apos;t have an account? </span>

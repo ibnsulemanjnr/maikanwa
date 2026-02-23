@@ -1,10 +1,21 @@
+// apps/web/app/(store)/auth/register/page.tsx
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Input, Button, Alert } from "@/components/ui";
 
+type RegisterPayload = {
+  fullName: string;
+  email: string;
+  phone?: string;
+  password: string;
+};
+
 export default function RegisterPage() {
+  const router = useRouter();
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -12,6 +23,7 @@ export default function RegisterPage() {
     password: "",
     confirmPassword: "",
   });
+
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -25,10 +37,37 @@ export default function RegisterPage() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      const payload: RegisterPayload = {
+        fullName: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim() || undefined,
+        password: formData.password,
+      };
+
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // cookie session is set by server via Set-Cookie automatically
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        // expect backend: { message: "..." }
+        throw new Error(data?.message || "Registration failed");
+      }
+
+      // Success: server should set HTTP-only cookie session
+      router.push("/account"); // adjust if your post-login route differs
+      router.refresh();
+    } catch (err: any) {
+      setError(err?.message || "Registration failed");
+    } finally {
       setIsLoading(false);
-      setError("Registration functionality coming soon");
-    }, 1000);
+    }
   };
 
   return (
