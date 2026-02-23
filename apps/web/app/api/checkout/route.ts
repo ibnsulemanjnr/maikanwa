@@ -244,15 +244,6 @@ export async function GET(req: NextRequest) {
 
 // -----------------------------
 // POST: Create order + init payment (Paystack) or COD
-// body:
-// {
-//   paymentMethod: "PAYSTACK" | "CASH_ON_DELIVERY",
-//   addressId?: string,
-//   address?: { ...guest address fields... },
-//   email?: string (required for guest Paystack init),
-//   shippingMethodId?: string,
-//   notes?: string
-// }
 // -----------------------------
 export async function POST(req: NextRequest) {
   try {
@@ -294,7 +285,6 @@ export async function POST(req: NextRequest) {
       if (!addr) return json({ ok: false, error: "Invalid addressId" }, { status: 400 });
       addressSnapshot = buildAddressSnapshotFromRecord(addr) as Prisma.InputJsonValue;
     } else {
-      // guest address input OR logged-in user without saved address
       const addr =
         b.address && typeof b.address === "object" ? (b.address as Record<string, unknown>) : null;
       const addressLine1 = addr ? parseString(addr.addressLine1) : null;
@@ -340,7 +330,20 @@ export async function POST(req: NextRequest) {
     const currency = cart.currency || "NGN";
     let subtotalKobo = 0;
 
-    const orderItemsData: Prisma.OrderItemCreateManyOrderInput[] = [];
+    // ✅ Draft shape used for nested items.create (no orderId here)
+    type OrderItemDraft = {
+      productId: string;
+      variantId: string;
+      productType: ProductType;
+      title: string;
+      sku: string | null;
+      quantity: Prisma.Decimal;
+      unitPriceKobo: number;
+      lineTotalKobo: number;
+      meta?: Prisma.InputJsonValue;
+    };
+
+    const orderItemsData: OrderItemDraft[] = [];
 
     // Reserve updates collected
     const reserveOps: Array<{
@@ -393,7 +396,6 @@ export async function POST(req: NextRequest) {
       subtotalKobo += lineTotalKobo;
 
       orderItemsData.push({
-        orderId: "TEMP", // replaced after Order is created (we’ll use create with nested)
         productId: variant.productId,
         variantId: variant.id,
         productType: variant.product.type,
@@ -405,7 +407,6 @@ export async function POST(req: NextRequest) {
         meta: cartItem.attachedToCartItemId
           ? ({ attachedToCartItemId: cartItem.attachedToCartItemId } as Prisma.InputJsonValue)
           : undefined,
-        createdAt: new Date(),
       });
     }
 
