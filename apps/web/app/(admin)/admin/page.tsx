@@ -1,4 +1,3 @@
-// apps/web/app/(admin)/admin/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,12 +5,41 @@ import Link from "next/link";
 import { StatsCard } from "@/components/admin";
 import { Spinner, Button } from "@/components/ui";
 
-function countFromResponse(res: unknown): number {
+type ApiListPayload = unknown;
+
+function countFromResponse(res: ApiListPayload): number {
   if (!res) return 0;
+
   if (Array.isArray(res)) return res.length;
-  if (Array.isArray(res.results)) return res.results.length;
-  if (Array.isArray(res.data)) return res.data.length;
+
+  if (typeof res === "object" && res !== null) {
+    const obj = res as Record<string, unknown>;
+    const results = obj["results"];
+    const data = obj["data"];
+
+    if (Array.isArray(results)) return results.length;
+    if (Array.isArray(data)) return data.length;
+  }
+
   return 0;
+}
+
+type AdminOrder = { total?: string | number };
+
+function extractOrders(res: unknown): AdminOrder[] {
+  if (!res) return [];
+  if (Array.isArray(res)) return res as AdminOrder[];
+  if (typeof res === "object" && res !== null) {
+    const obj = res as Record<string, unknown>;
+    const results = obj["results"];
+    if (Array.isArray(results)) return results as AdminOrder[];
+  }
+  return [];
+}
+
+function formatNaira(n: number) {
+  if (!Number.isFinite(n)) return "₦0";
+  return `₦${Math.round(n).toLocaleString()}`;
 }
 
 export default function AdminHome() {
@@ -28,31 +56,40 @@ export default function AdminHome() {
 
     async function load() {
       setLoading(true);
+
       try {
         const [productsRes, categoriesRes, ordersRes] = await Promise.all([
-          fetch("/api/products", { cache: "no-store" }).then((r) => r.json()),
-          fetch("/api/categories", { cache: "no-store" }).then((r) => r.json()),
-          fetch("/api/admin/orders", { cache: "no-store" }).then((r) => r.json()),
+          fetch("/api/products", { cache: "no-store" }).then(
+            (r) => r.json() as Promise<ApiListPayload>,
+          ),
+          fetch("/api/categories", { cache: "no-store" }).then(
+            (r) => r.json() as Promise<ApiListPayload>,
+          ),
+          // This endpoint may not exist yet — handle safely
+          fetch("/api/admin/orders", { cache: "no-store", credentials: "include" })
+            .then(async (r) => {
+              if (!r.ok) return null; // 401/403/404 -> treat as empty
+              return (await r.json()) as unknown;
+            })
+            .catch(() => null),
         ]);
 
         if (!mounted) return;
 
-        const orders = ordersRes?.results || [];
-        const totalRevenue = orders.reduce(
-          (sum: number, o: { total?: string | number }) =>
-            sum + (parseFloat(String(o.total || 0)) || 0),
-          0,
-        );
+        const orders = extractOrders(ordersRes);
+        const totalRevenue = orders.reduce((sum, o) => {
+          const n = parseFloat(String(o.total ?? 0));
+          return sum + (Number.isFinite(n) ? n : 0);
+        }, 0);
 
-        setStats((s) => ({
-          ...s,
+        setStats({
           products: countFromResponse(productsRes),
           categories: countFromResponse(categoriesRes),
           orders: orders.length,
-          revenue: `₦${totalRevenue.toLocaleString()}`,
-        }));
+          revenue: formatNaira(totalRevenue),
+        });
       } catch {
-        // keep default zeros
+        // keep defaults
       } finally {
         if (mounted) setLoading(false);
       }
