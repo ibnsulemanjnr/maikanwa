@@ -1,3 +1,4 @@
+// apps/web/app/(admin)/admin/products/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -16,11 +17,24 @@ interface Product {
 
 type ProductsResponse = { results: Product[] } | { data: Product[] } | Product[];
 
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(v: unknown): v is UnknownRecord {
+  return typeof v === "object" && v !== null;
+}
+
 function normalizeProductsPayload(payload: unknown): Product[] {
   if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload.results)) return payload.results;
-  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload)) return payload as Product[];
+
+  if (isRecord(payload)) {
+    const results = payload["results"];
+    if (Array.isArray(results)) return results as Product[];
+
+    const data = payload["data"];
+    if (Array.isArray(data)) return data as Product[];
+  }
+
   return [];
 }
 
@@ -35,9 +49,11 @@ export default function AdminProductsPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/admin/products", { cache: "no-store", credentials: "include" });
+      const res = await fetch("/api/admin/products", {
+        cache: "no-store",
+        credentials: "include",
+      });
 
-      // If unauthorized (shouldn't happen due to admin layout guard), handle gracefully
       if (res.status === 401 || res.status === 403) {
         setError("Unauthorized. Please login as admin.");
         setProducts([]);
@@ -45,8 +61,13 @@ export default function AdminProductsPage() {
       }
 
       const data: ProductsResponse = await res.json().catch(() => [] as unknown);
+
       if (!res.ok) {
-        throw new Error((data as { message?: string })?.message || "Failed to load products");
+        const msg =
+          isRecord(data) && typeof data["message"] === "string"
+            ? (data["message"] as string)
+            : "Failed to load products";
+        throw new Error(msg);
       }
 
       setProducts(normalizeProductsPayload(data));
@@ -65,12 +86,13 @@ export default function AdminProductsPage() {
     loadProducts();
   }, []);
 
-  if (loading)
+  if (loading) {
     return (
       <div className="flex justify-center py-12">
         <Spinner />
       </div>
     );
+  }
 
   return (
     <div className="space-y-6">
