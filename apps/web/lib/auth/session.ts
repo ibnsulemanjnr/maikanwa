@@ -70,8 +70,9 @@ export function getSessionTokenFromRequest(req: Request): string | null {
   return null;
 }
 
-function getSessionTokenFromServerCookies(): string | null {
-  const c = cookies();
+// ✅ Next 16+: cookies() can be async -> await it
+async function getSessionTokenFromServerCookies(): Promise<string | null> {
+  const c = await cookies();
   for (const name of SESSION_COOKIE_CANDIDATES) {
     const v = c.get(name)?.value;
     if (v && v.trim().length > 10) return v;
@@ -134,7 +135,7 @@ export async function getSessionUserFromRequest(req: Request) {
  * Reads cookies via next/headers and resolves the current user.
  */
 export async function getSessionUser() {
-  const token = getSessionTokenFromServerCookies();
+  const token = await getSessionTokenFromServerCookies();
   if (!token) return null;
 
   const tokenHash = sha256Hex(token);
