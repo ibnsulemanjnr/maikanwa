@@ -1,5 +1,7 @@
+// apps/web/app/api/admin/products/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { apiError } from "@/lib/utils/apiResponse";
@@ -113,6 +115,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ✅ Prisma JSON: omit if undefined; if null -> DbNull; else cast to InputJsonValue
+    const attributesValue =
+      body.attributes === undefined
+        ? undefined
+        : body.attributes === null
+          ? Prisma.DbNull
+          : (body.attributes as Prisma.InputJsonValue);
+
     const product = await prisma.product.create({
       data: {
         title: body.title,
@@ -122,7 +132,7 @@ export async function POST(req: NextRequest) {
         status: body.status,
         currency: body.currency,
         basePriceKobo: body.basePrice !== undefined ? Math.round(body.basePrice * 100) : null,
-        attributes: body.attributes ?? null,
+        attributes: attributesValue,
 
         categories: body.categoryIds.length
           ? { connect: body.categoryIds.map((id) => ({ id })) }
