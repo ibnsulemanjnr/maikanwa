@@ -73,6 +73,9 @@ export default function CartPage() {
   const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
 
+  // image fallback per cartItemId (so each Image can fail independently)
+  const [imgFailedByItem, setImgFailedByItem] = useState<Record<string, boolean>>({});
+
   async function loadCart() {
     setLoading(true);
     setError(null);
@@ -84,9 +87,18 @@ export default function CartPage() {
       const json = (await res.json()) as ApiResponse<CartPayload>;
       if (json.ok) {
         setCart(json.data);
+
         const nextDraft: Record<string, string> = {};
-        for (const it of json.data.items) nextDraft[it.id] = normalizeQty(it.quantity);
+        const nextImgFailed: Record<string, boolean> = {};
+
+        for (const it of json.data.items) {
+          nextDraft[it.id] = normalizeQty(it.quantity);
+          // preserve existing failure flags if already set
+          nextImgFailed[it.id] = imgFailedByItem[it.id] ?? false;
+        }
+
         setQtyDraft(nextDraft);
+        setImgFailedByItem(nextImgFailed);
       } else {
         setCart(null);
         setError(json.error || "Failed to load cart");
@@ -101,6 +113,7 @@ export default function CartPage() {
 
   useEffect(() => {
     loadCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const grouped = useMemo(() => {
@@ -170,9 +183,16 @@ export default function CartPage() {
         return;
       }
       setCart(json.data);
+
       const nextDraft: Record<string, string> = {};
       for (const it of json.data.items) nextDraft[it.id] = normalizeQty(it.quantity);
       setQtyDraft(nextDraft);
+
+      // remove image-failed flag for removed item
+      setImgFailedByItem((p) => {
+        const { [itemId]: _, ...rest } = p;
+        return rest;
+      });
     } catch (err) {
       setError((err as Error)?.message || "Failed to remove item");
     } finally {
@@ -222,112 +242,114 @@ export default function CartPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Items */}
           <div className="lg:col-span-2 space-y-4">
-            {grouped.roots.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-2xl bg-white p-4 sm:p-5 shadow-sm border border-gray-100"
-              >
-                <div className="flex gap-4">
-                  <div className="relative w-24 h-24 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0">
-                    <Image
-                      src={item.variant.product.image || FALLBACK_IMG}
-                      alt={item.variant.product.title}
-                      fill
-                      sizes="96px"
-                      className="object-cover"
-                      onError={(e) => {
-                        // @ts-expect-error next/image onError typing differs
-                        e.currentTarget.src = FALLBACK_IMG;
-                      }}
-                    />
-                  </div>
+            {grouped.roots.map((item) => {
+              const imgFailed = !!imgFailedByItem[item.id];
+              const src = imgFailed ? FALLBACK_IMG : item.variant.product.image || FALLBACK_IMG;
 
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <Link
-                          href={`/product/${item.variant.product.slug}`}
-                          className="font-semibold text-[#111827] hover:text-[#1E2A78]"
-                        >
-                          {item.variant.product.title}
-                        </Link>
-
-                        <div className="mt-1 text-sm text-gray-600">
-                          {formatNgnFromKobo(item.variant.priceKobo)}
-                          {item.variant.unit ? ` / ${unitLabel(item.variant.unit)}` : ""}
-                        </div>
-
-                        {!item.inStock && (
-                          <div className="mt-2">
-                            <Badge variant="error">Out of Stock</Badge>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="text-right">
-                        <div className="font-bold text-[#111827]">
-                          {formatNgnFromKobo(item.lineTotalKobo)}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">Line total</div>
-                      </div>
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-2xl bg-white p-4 sm:p-5 shadow-sm border border-gray-100"
+                >
+                  <div className="flex gap-4">
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0">
+                      <Image
+                        src={src}
+                        alt={item.variant.product.title}
+                        fill
+                        sizes="96px"
+                        className="object-cover"
+                        onError={() => setImgFailedByItem((p) => ({ ...p, [item.id]: true }))}
+                      />
                     </div>
 
-                    <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-600">Qty</label>
-                        <input
-                          value={qtyDraft[item.id] ?? normalizeQty(item.quantity)}
-                          onChange={(e) =>
-                            setQtyDraft((p) => ({ ...p, [item.id]: e.target.value }))
-                          }
-                          inputMode="decimal"
-                          className="w-28 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1E2A78]/30"
-                        />
-                        <Button
-                          variant="outline"
-                          onClick={() => updateQuantity(item.id)}
-                          disabled={busyItemId === item.id}
-                        >
-                          {busyItemId === item.id ? "..." : "Update"}
-                        </Button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => removeItem(item.id)}
-                          disabled={busyItemId === item.id}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Attached items (e.g., tailoring service linked to fabric) */}
-                    {(grouped.childrenByParent.get(item.id) ?? []).length > 0 && (
-                      <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
-                        {(grouped.childrenByParent.get(item.id) ?? []).map((child) => (
-                          <div
-                            key={child.id}
-                            className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2"
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <Link
+                            href={`/product/${item.variant.product.slug}`}
+                            className="font-semibold text-[#111827] hover:text-[#1E2A78]"
                           >
-                            <div className="text-sm">
-                              <span className="font-medium text-[#111827]">
-                                {child.variant.product.title}
-                              </span>{" "}
-                              <span className="text-gray-600">(attached)</span>
-                            </div>
-                            <div className="text-sm font-semibold text-[#111827]">
-                              {formatNgnFromKobo(child.lineTotalKobo)}
-                            </div>
+                            {item.variant.product.title}
+                          </Link>
+
+                          <div className="mt-1 text-sm text-gray-600">
+                            {formatNgnFromKobo(item.variant.priceKobo)}
+                            {item.variant.unit ? ` / ${unitLabel(item.variant.unit)}` : ""}
                           </div>
-                        ))}
+
+                          {!item.inStock && (
+                            <div className="mt-2">
+                              <Badge variant="error">Out of Stock</Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-right">
+                          <div className="font-bold text-[#111827]">
+                            {formatNgnFromKobo(item.lineTotalKobo)}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">Line total</div>
+                        </div>
                       </div>
-                    )}
+
+                      <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm text-gray-600">Qty</label>
+                          <input
+                            value={qtyDraft[item.id] ?? normalizeQty(item.quantity)}
+                            onChange={(e) =>
+                              setQtyDraft((p) => ({ ...p, [item.id]: e.target.value }))
+                            }
+                            inputMode="decimal"
+                            className="w-28 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1E2A78]/30"
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() => updateQuantity(item.id)}
+                            disabled={busyItemId === item.id}
+                          >
+                            {busyItemId === item.id ? "..." : "Update"}
+                          </Button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => removeItem(item.id)}
+                            disabled={busyItemId === item.id}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Attached items (e.g., tailoring service linked to fabric) */}
+                      {(grouped.childrenByParent.get(item.id) ?? []).length > 0 && (
+                        <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+                          {(grouped.childrenByParent.get(item.id) ?? []).map((child) => (
+                            <div
+                              key={child.id}
+                              className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2"
+                            >
+                              <div className="text-sm">
+                                <span className="font-medium text-[#111827]">
+                                  {child.variant.product.title}
+                                </span>{" "}
+                                <span className="text-gray-600">(attached)</span>
+                              </div>
+                              <div className="text-sm font-semibold text-[#111827]">
+                                {formatNgnFromKobo(child.lineTotalKobo)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Summary */}
