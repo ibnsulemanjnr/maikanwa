@@ -6,23 +6,42 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button, Spinner, Badge } from "@/components/ui";
 
-type VerifyData =
-  | {
-      reference: string;
-      verified: true;
-      alreadyPaid?: true;
-      paid?: true;
-      orderId: string;
-    }
-  | {
-      reference: string;
-      verified: true;
-      paid: false;
-      paystackStatus?: string;
-      orderId: string;
-    };
+type VerifyPaid = {
+  reference: string;
+  verified: true;
+  orderId: string;
+  paid?: true;
+  alreadyPaid?: true;
+  paystackStatus?: string;
+};
+
+type VerifyPending = {
+  reference: string;
+  verified: true;
+  paid: false;
+  orderId: string;
+  paystackStatus?: string;
+};
+
+type VerifyFailed = {
+  reference: string;
+  verified: false;
+  message?: string;
+  paystackStatus?: string;
+  orderId?: string;
+};
+
+type VerifyData = VerifyPaid | VerifyPending | VerifyFailed;
 
 type ApiResponse<T> = { ok: true; data: T } | { ok: false; error?: string };
+
+function isPaidVerify(d: VerifyData | null): d is VerifyPaid {
+  return !!d && d.verified === true && (d.paid === true || d.alreadyPaid === true);
+}
+
+function isPendingVerify(d: VerifyData | null): d is VerifyPending {
+  return !!d && d.verified === true && d.paid === false;
+}
 
 export default function CheckoutSuccessPage() {
   const sp = useSearchParams();
@@ -61,13 +80,16 @@ export default function CheckoutSuccessPage() {
 
       setData(json.data);
 
+      // Optional: if backend returns verified:false in ok:true, surface it as an error
+      if (json.data.verified === false) {
+        setError(json.data.message || "Payment not verified yet. Please try again.");
+      }
+
       // If paid, we can nudge user to account/orders page.
-      // Keep it simple: you can change the target when orders pages are ready.
       if (
-        (json.data as { paid?: boolean; alreadyPaid?: boolean }).paid === true ||
-        (json.data as { paid?: boolean; alreadyPaid?: boolean }).alreadyPaid === true
+        json.data.verified === true &&
+        (json.data.paid === true || json.data.alreadyPaid === true)
       ) {
-        // Optional: auto-route after a short moment
         // router.push(`/account/orders/${json.data.orderId}`);
       }
     } catch (err) {
@@ -109,10 +131,8 @@ export default function CheckoutSuccessPage() {
     );
   }
 
-  const isPaid =
-    (data as { paid?: boolean; alreadyPaid?: boolean })?.paid === true ||
-    (data as { paid?: boolean; alreadyPaid?: boolean })?.alreadyPaid === true;
-  const isPending = data && (data as { paid?: boolean })?.paid === false;
+  const paidData = isPaidVerify(data) ? data : null;
+  const pendingData = isPendingVerify(data) ? data : null;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -130,9 +150,9 @@ export default function CheckoutSuccessPage() {
               <Spinner />
               <span className="text-sm">Verifying...</span>
             </div>
-          ) : isPaid ? (
+          ) : paidData ? (
             <Badge variant="success">Paid</Badge>
-          ) : isPending ? (
+          ) : pendingData ? (
             <Badge variant="warning">Pending</Badge>
           ) : error ? (
             <Badge variant="error">Error</Badge>
@@ -152,22 +172,22 @@ export default function CheckoutSuccessPage() {
             <p className="text-gray-600">Click verify to confirm your payment.</p>
           )}
 
-          {data && isPaid && (
+          {paidData && (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
               <p className="font-semibold text-[#111827]">Payment confirmed.</p>
               <p className="mt-2 text-sm text-gray-700">
-                Order ID: <span className="font-mono">{data.orderId}</span>
+                Order ID: <span className="font-mono">{paidData.orderId}</span>
               </p>
               <p className="mt-2 text-sm text-gray-600">Your order is now being processed.</p>
             </div>
           )}
 
-          {data && isPending && (
+          {pendingData && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
               <p className="font-semibold text-[#111827]">Payment not confirmed yet.</p>
               <p className="mt-2 text-sm text-gray-700">
                 Paystack status:{" "}
-                <span className="font-mono">{data.paystackStatus || "unknown"}</span>
+                <span className="font-mono">{pendingData.paystackStatus ?? "unknown"}</span>
               </p>
               <p className="mt-2 text-sm text-gray-600">
                 If you already paid, click verify again in a moment.
@@ -181,7 +201,7 @@ export default function CheckoutSuccessPage() {
             {loading ? "Verifying..." : "Verify Again"}
           </Button>
 
-          {data?.orderId && (
+          {!!(data && "orderId" in data && data.orderId) && (
             <Link href="/orders" className="sm:ml-auto">
               <Button variant="outline" className="w-full sm:w-auto">
                 View Orders
