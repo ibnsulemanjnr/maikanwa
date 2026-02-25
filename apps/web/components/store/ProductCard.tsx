@@ -1,6 +1,6 @@
+// apps/web/components/store/ProductCard.tsx
 "use client";
 
-// apps/web/components/store/ProductCard.tsx
 import Link from "next/link";
 import Image from "next/image";
 import { useMemo, useState } from "react";
@@ -11,25 +11,17 @@ interface ProductCardProps {
   id: string;
   name: string;
   slug: string;
-
-  /**
-   * Stored/transported in KOBO (minor units).
-   * Example: ₦5,000.00 => 500000
-   */
+  /** Stored in KOBO (minor units). Example: ₦5,000.00 => 500000 */
   priceKobo: number;
-
-  /**
-   * Can be a remote URL (R2/S3/placeholder) or a local /public path.
-   */
+  /** Remote URL (Drive/R2/S3/etc) or local /public path */
   image: string;
-
   category?: string;
   inStock?: boolean;
   isNew?: boolean;
   priority?: boolean;
 }
 
-const FALLBACK_IMG = "/images/placeholders/product.jpg"; // ensure this exists in apps/web/public
+const FALLBACK_IMG = "/images/placeholders/product.jpg";
 
 function formatNgnFromKobo(kobo: number) {
   const naira = kobo / 100;
@@ -38,6 +30,39 @@ function formatNgnFromKobo(kobo: number) {
     currency: "NGN",
     maximumFractionDigits: 0,
   }).format(naira);
+}
+
+function isGoogleHosted(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    return (
+      h === "drive.google.com" ||
+      h === "lh3.googleusercontent.com" ||
+      h === "drive.usercontent.google.com" ||
+      h.endsWith(".googleusercontent.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function CardImage({ src, alt, priority }: { src: string; alt: string; priority: boolean }) {
+  const [errored, setErrored] = useState(false);
+  const effectiveSrc = !errored && src ? src : FALLBACK_IMG;
+  const unoptimized = isGoogleHosted(effectiveSrc);
+
+  return (
+    <Image
+      src={effectiveSrc}
+      alt={alt}
+      fill
+      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+      priority={priority}
+      unoptimized={unoptimized}
+      className="object-cover transition-transform hover:scale-105"
+      onError={() => setErrored(true)}
+    />
+  );
 }
 
 export default function ProductCard({
@@ -50,23 +75,27 @@ export default function ProductCard({
   isNew,
   priority = false,
 }: ProductCardProps) {
-  const [imgSrc, setImgSrc] = useState(image || FALLBACK_IMG);
+  const priceText = useMemo(() => {
+    if (!priceKobo) return "Contact for price";
+    return formatNgnFromKobo(priceKobo);
+  }, [priceKobo]);
 
-  const priceText = useMemo(() => formatNgnFromKobo(priceKobo), [priceKobo]);
+  const src = image || FALLBACK_IMG;
 
   return (
-    <Link href={`/product/${slug}`} aria-label={`View ${name}`}>
-      <Card hover className="h-full">
+    <Link
+      href={`/product/${slug}`}
+      aria-label={`View ${name}`}
+      aria-disabled={!inStock}
+      className={!inStock ? "cursor-not-allowed" : ""}
+      onClick={(e) => {
+        if (!inStock) e.preventDefault();
+      }}
+    >
+      <Card hover className={`h-full ${!inStock ? "opacity-90" : ""}`}>
         <div className="relative aspect-square overflow-hidden">
-          <Image
-            src={imgSrc}
-            alt={name}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            priority={priority}
-            className="object-cover transition-transform hover:scale-105"
-            onError={() => setImgSrc(FALLBACK_IMG)}
-          />
+          {/* key resets internal error state when src changes */}
+          <CardImage key={src} src={src} alt={name} priority={priority} />
 
           {isNew && (
             <div className="absolute top-2 left-2">
@@ -75,7 +104,7 @@ export default function ProductCard({
           )}
 
           {!inStock && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/55 flex items-center justify-center pointer-events-none">
               <Badge variant="error">Out of Stock</Badge>
             </div>
           )}
@@ -84,7 +113,6 @@ export default function ProductCard({
         <CardBody>
           {category && <p className="text-xs text-gray-500 uppercase mb-1">{category}</p>}
           <h3 className="font-semibold text-[#111827] mb-2 line-clamp-2">{name}</h3>
-
           <p className="text-lg font-bold text-[#1E2A78]">{priceText}</p>
         </CardBody>
       </Card>

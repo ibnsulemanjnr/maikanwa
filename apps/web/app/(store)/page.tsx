@@ -5,16 +5,26 @@ import { CategoryCard } from "@/components/store";
 import { ProductStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const CATEGORY_FALLBACK_IMAGE_BY_SLUG: Record<string, string> = {
-  fabrics: "/images/categories/fabrics.jpg",
-  "ready-made": "/images/categories/ready-made.jpg",
-  caps: "/images/categories/caps.jpg",
-  shoes: "/images/categories/shoes.jpg",
-  "tailoring-services": "/images/categories/tailoring-services.jpg",
+  fabrics: "/images/categories/fabrics.jpeg",
+  caps: "/images/categories/caps.jpeg",
+  shoes: "/images/categories/shoes.jpeg",
 };
+
+function categoryPlaceholder(name: string) {
+  // ✅ remote placeholder (allowed in next.config remotePatterns)
+  return `https://placehold.co/1200x1200?text=${encodeURIComponent(name)}`;
+}
+
+function getCategoryImage(slug: string, name: string) {
+  // Use local file if you actually have it in /public,
+  // otherwise fall back to a remote placeholder to avoid broken tiles.
+  return CATEGORY_FALLBACK_IMAGE_BY_SLUG[slug] || categoryPlaceholder(name);
+}
 
 async function getHomepageCategories() {
   const categories = await prisma.category.findMany({
@@ -35,7 +45,7 @@ async function getHomepageCategories() {
       return {
         ...c,
         productCount,
-        image: CATEGORY_FALLBACK_IMAGE_BY_SLUG[c.slug] || "/images/categories/default.jpg",
+        image: getCategoryImage(c.slug, c.name),
       };
     }),
   );

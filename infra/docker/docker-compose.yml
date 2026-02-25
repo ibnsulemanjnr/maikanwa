@@ -6,8 +6,9 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: maikanwa
     ports:
-      - "5433"   
+      - "5433:5432"
     volumes:
       - maikanwa_db:/var/lib/postgresql/data
+
 volumes:
   maikanwa_db:

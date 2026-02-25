@@ -16,6 +16,35 @@ function isProductType(v: string | null): v is ProductType {
   return !!v && (Object.values(ProductType) as string[]).includes(v);
 }
 
+// -----------------------------
+// Google Drive image helpers
+// -----------------------------
+function extractDriveId(input: string): string | null {
+  try {
+    const u = new URL(input);
+    // drive.google.com
+    if (u.hostname.includes("drive.google.com")) {
+      const m = u.pathname.match(/\/file\/d\/([^/]+)/);
+      return m?.[1] ?? u.searchParams.get("id");
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ✅ Normalizes Drive share/view links into a renderable URL.
+ * - If it's not a Drive link, returns as-is.
+ * - Uses thumbnail endpoint (works reliably for public files).
+ */
+function normalizeImageUrl(url: string): string {
+  const id = extractDriveId(url);
+  if (!id) return url;
+  return `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
+}
+
+// (POST helpers kept, but GET is what the store needs)
 function slugify(input: string): string {
   return input
     .toLowerCase()
@@ -32,7 +61,6 @@ async function ensureUniqueSlug(base: string): Promise<string> {
     if (!exists) return slug;
     slug = `${base}-${i + 2}`;
   }
-  // fallback (extremely unlikely)
   return `${base}-${Date.now()}`;
 }
 
@@ -60,7 +88,7 @@ export async function GET(request: Request) {
       ...(categorySlug ? { categories: { some: { slug: categorySlug } } } : {}),
     };
 
-    const products = await prisma.product.findMany({
+    const rows = await prisma.product.findMany({
       where,
       select: {
         id: true,
@@ -69,19 +97,23 @@ export async function GET(request: Request) {
         type: true,
         basePriceKobo: true,
         currency: true,
+
         images: {
           orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
           take: 1,
           select: { url: true },
         },
+
+        // ✅ fetch all active variants (minimal fields) so we can compute inStock accurately
         variants: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
-          take: 1,
           select: {
             priceKobo: true,
+            inventory: { select: { quantity: true, reserved: true } },
           },
         },
+
         categories: {
           select: { name: true, slug: true },
           orderBy: { sortOrder: "asc" },
@@ -91,12 +123,41 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
+    const products = rows.map((p) => {
+      const inStock =
+        p.type === ProductType.SERVICE
+          ? true
+          : p.variants.length === 0
+            ? true // no inventory tracked -> treat as available
+            : p.variants.some((v) => {
+                const inv = v.inventory;
+                if (!inv) return true;
+                const available = inv.quantity.sub(inv.reserved);
+                return available.greaterThan(0);
+              });
+
+      // ✅ Ensure returned image URL is always renderable
+      const images = (p.images ?? []).map((img) => ({
+        url: normalizeImageUrl(img.url),
+      }));
+
+      return {
+        ...p,
+        images,
+        inStock,
+      };
+    });
+
     return NextResponse.json({ ok: true, data: products });
   } catch {
     return NextResponse.json({ ok: false, error: "Failed to fetch products" }, { status: 500 });
   }
 }
 
+/**
+ * NOTE: This POST is not used by admin (you use /api/admin/products),
+ * but keeping it here for completeness.
+ */
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as unknown;
@@ -118,7 +179,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Invalid product type" }, { status: 400 });
     }
 
-    // Backward compat: accept basePrice (naira) or basePriceKobo (kobo)
     const basePriceKobo =
       typeof b.basePriceKobo === "number" ? Math.trunc(b.basePriceKobo) : toKobo(b.basePrice);
 
@@ -130,7 +190,7 @@ export async function POST(request: Request) {
       .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : null))
       .filter((x): x is Record<string, unknown> => !!x)
       .map((img, idx) => ({
-        url: String(img.url || ""),
+        url: normalizeImageUrl(String(img.url || "")), // ✅ normalize on write too
         altText: typeof img.altText === "string" ? img.altText : null,
         sortOrder: typeof img.sortOrder === "number" ? img.sortOrder : idx,
         isPrimary: typeof img.isPrimary === "boolean" ? img.isPrimary : idx === 0,
@@ -142,7 +202,6 @@ export async function POST(request: Request) {
       .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : null))
       .filter((x): x is Record<string, unknown> => !!x)
       .map((v) => {
-        // Backward compat: accept price (naira) or priceKobo (kobo)
         const priceKobo =
           typeof v.priceKobo === "number" ? Math.trunc(v.priceKobo) : toKobo(v.price);
 
@@ -159,7 +218,8 @@ export async function POST(request: Request) {
         };
       });
 
-    const baseSlug = slugify(title);
+    const slugInput = typeof b.slug === "string" ? slugify(b.slug) : "";
+    const baseSlug = slugInput || slugify(title);
     const slug = await ensureUniqueSlug(baseSlug);
 
     const product = await prisma.product.create({
@@ -172,7 +232,7 @@ export async function POST(request: Request) {
         status: ProductStatus.DRAFT,
         categories: categoryIds.length ? { connect: categoryIds.map((id) => ({ id })) } : undefined,
         images: images.length ? { create: images } : undefined,
-        variants: variants.length ? { create: variants as any } : undefined, // variants typed by Prisma at compile-time in repo
+        variants: variants.length ? { create: variants as never } : undefined,
       },
       select: {
         id: true,

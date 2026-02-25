@@ -16,6 +16,39 @@ function slugify(input: string) {
     .replace(/(^-|-$)+/g, "");
 }
 
+// -------------------------
+// Drive URL normalization
+// -------------------------
+function extractDriveId(input: string): string | null {
+  try {
+    const u = new URL(input);
+    if (!u.hostname.includes("drive.google.com")) return null;
+
+    // /file/d/<id>/view
+    const m = u.pathname.match(/\/file\/d\/([^/]+)/);
+    if (m?.[1]) return m[1];
+
+    // open?id=<id> / uc?id=<id>
+    const id = u.searchParams.get("id");
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Convert Drive share/view links into an image-renderable URL.
+ * NOTE: This still requires the Drive file to be public (Anyone with link).
+ */
+function normalizeImageUrl(url: string): string {
+  const id = extractDriveId(url);
+  if (!id) return url;
+  return `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
+}
+
+// -------------------------
+// Zod schemas
+// -------------------------
 const VariantSchema = z.object({
   title: z.string().max(160).optional(),
   sku: z.string().max(80).optional(),
@@ -32,8 +65,16 @@ const VariantSchema = z.object({
   qtyStep: z.coerce.number().optional(),
 
   // inventory
-  inventoryQty: z.coerce.number().int().min(0).optional(),
-  lowStockAt: z.coerce.number().int().min(0).optional(),
+  // ✅ allow decimals (your DB Inventory.quantity is Decimal)
+  inventoryQty: z.coerce.number().min(0).optional(),
+  lowStockAt: z.coerce.number().min(0).optional(),
+});
+
+const ImageSchema = z.object({
+  url: z.string().url(),
+  altText: z.string().max(160).optional(),
+  sortOrder: z.number().optional(),
+  isPrimary: z.boolean().optional(),
 });
 
 const CreateProductSchema = z.object({
@@ -47,7 +88,10 @@ const CreateProductSchema = z.object({
   attributes: z.unknown().optional(),
 
   categoryIds: z.array(z.string().uuid()).default([]),
-  imageUrls: z.array(z.string().url()).default([]),
+
+  // ✅ supports BOTH shapes (robust)
+  imageUrls: z.array(z.string().url()).optional().default([]),
+  images: z.array(ImageSchema).optional(),
 
   variants: z.array(VariantSchema).min(1),
 });
@@ -71,8 +115,8 @@ export async function GET(req: NextRequest) {
             ],
           }
         : {}),
-      ...(type ? { type: type as "FABRIC" | "READY_MADE" | "CAP" | "SHOE" | "SERVICE" } : {}),
-      ...(status ? { status: status as "DRAFT" | "PUBLISHED" | "ARCHIVED" } : {}),
+      ...(type ? { type: type as any } : {}),
+      ...(status ? { status: status as any } : {}),
     },
     include: {
       images: { orderBy: { sortOrder: "asc" } },
@@ -115,13 +159,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ Prisma JSON: omit if undefined; if null -> DbNull; else cast to InputJsonValue
+    // Prisma JSON
     const attributesValue =
       body.attributes === undefined
         ? undefined
         : body.attributes === null
           ? Prisma.DbNull
           : (body.attributes as Prisma.InputJsonValue);
+
+    // ✅ Resolve image URLs from either field
+    const resolved =
+      body.imageUrls && body.imageUrls.length > 0
+        ? body.imageUrls
+        : (body.images ?? []).map((i) => i.url);
+
+    // Normalize + keep order (and allow sortOrder if provided)
+    const fromImages = (body.images ?? []).length > 0;
+    const ordered = fromImages
+      ? [...(body.images ?? [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      : resolved.map((url) => ({ url }));
+
+    const normalized = ordered
+      .map((img, idx) => ({
+        url: normalizeImageUrl(img.url),
+        altText: (img as any).altText ?? body.title,
+        sortOrder: idx,
+        isPrimary: Boolean((img as any).isPrimary),
+      }))
+      .filter((x) => !!x.url);
+
+    // Ensure exactly one primary
+    const primaryIndex = normalized.findIndex((x) => x.isPrimary);
+    normalized.forEach((x, idx) => {
+      x.isPrimary = primaryIndex >= 0 ? idx === primaryIndex : idx === 0;
+    });
 
     const product = await prisma.product.create({
       data: {
@@ -138,12 +209,13 @@ export async function POST(req: NextRequest) {
           ? { connect: body.categoryIds.map((id) => ({ id })) }
           : undefined,
 
-        images: body.imageUrls.length
+        images: normalized.length
           ? {
-              create: body.imageUrls.map((url, idx) => ({
-                url,
-                altText: body.title,
-                sortOrder: idx,
+              create: normalized.map((img) => ({
+                url: img.url,
+                altText: img.altText,
+                sortOrder: img.sortOrder,
+                isPrimary: img.isPrimary,
               })),
             }
           : undefined,

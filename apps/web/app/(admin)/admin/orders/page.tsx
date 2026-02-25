@@ -1,3 +1,4 @@
+// apps/web/app/(admin)/admin/orders/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -16,7 +17,7 @@ type OrderStatus =
 
 type AdminOrder = {
   id: string;
-  orderNumber: string;
+  orderNumber: string; // e.g. BA9F327F (short code)
   status: OrderStatus;
   total: string; // "12345.00"
   currency: string; // "NGN"
@@ -37,8 +38,13 @@ function normalizeOrdersPayload(payload: any): AdminOrder[] {
 function formatMoney(currency: string, amount: string) {
   const n = Number(amount || 0);
   if (!Number.isFinite(n)) return `${currency} ${amount}`;
-  // lightweight formatting (avoid Intl issues on some envs)
   return `${currency === "NGN" ? "₦" : currency} ${n.toLocaleString()}`;
+}
+
+function getOrderLinkId(o: AdminOrder): string {
+  // Prefer real UUID for uniqueness; fall back to orderNumber.
+  // Our detail API supports both UUID and 8-char code.
+  return (o.id || "").trim() || (o.orderNumber || "").trim();
 }
 
 export default function AdminOrdersPage() {
@@ -54,7 +60,6 @@ export default function AdminOrdersPage() {
     const sp = new URLSearchParams();
     if (q.trim()) sp.set("q", q.trim());
     if (status) sp.set("status", status);
-    // future: date range, paid/unpaid, pagination
     return sp.toString();
   }, [q, status]);
 
@@ -66,7 +71,6 @@ export default function AdminOrdersPage() {
       const url = queryString ? `/api/admin/orders?${queryString}` : `/api/admin/orders`;
       const res = await fetch(url, { cache: "no-store", credentials: "include" });
 
-      // If endpoint not created yet, don't crash the page
       if (res.status === 404) {
         setOrders([]);
         setError("");
@@ -168,8 +172,8 @@ export default function AdminOrdersPage() {
           <div className="mt-6 rounded-xl border bg-gray-50 p-5">
             <div className="font-medium text-[#111827]">No orders yet</div>
             <p className="mt-1 text-sm text-gray-600">
-              Orders will appear here once checkout + order creation (EPIC 3) and Paystack
-              confirmation (EPIC 4) are implemented.
+              Orders will appear here once checkout + order creation and payment confirmation are
+              implemented.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link href="/shop">
@@ -194,28 +198,31 @@ export default function AdminOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o) => (
-                  <tr key={o.id} className="border-b">
-                    <td className="py-3 pr-4 font-medium">{o.orderNumber}</td>
-                    <td className="py-3 pr-4">
-                      <div className="text-[#111827]">{o.customerName || "—"}</div>
-                      <div className="text-gray-500">{o.customerEmail || "—"}</div>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold">
-                        {o.status}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4">{formatMoney(o.currency, o.total)}</td>
-                    <td className="py-3 pr-4">{new Date(o.createdAt).toLocaleString()}</td>
-                    <td className="py-3 pr-2">
-                      {/* Detail page can be added later: /admin/orders/[id] */}
-                      <Button variant="outline" disabled>
-                        View
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {orders.map((o) => {
+                  const linkId = getOrderLinkId(o);
+
+                  return (
+                    <tr key={o.id || o.orderNumber} className="border-b">
+                      <td className="py-3 pr-4 font-medium">{o.orderNumber}</td>
+                      <td className="py-3 pr-4">
+                        <div className="text-[#111827]">{o.customerName || "—"}</div>
+                        <div className="text-gray-500">{o.customerEmail || "—"}</div>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold">
+                          {o.status}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4">{formatMoney(o.currency, o.total)}</td>
+                      <td className="py-3 pr-4">{new Date(o.createdAt).toLocaleString()}</td>
+                      <td className="py-3 pr-2">
+                        <Link href={`/admin/orders/${encodeURIComponent(linkId)}`}>
+                          <Button variant="outline">View</Button>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
