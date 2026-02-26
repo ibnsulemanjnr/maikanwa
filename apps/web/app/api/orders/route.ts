@@ -33,6 +33,7 @@ export async function GET(req: Request) {
     items: order.items.map((item) => ({
       id: item.id,
       title: item.title,
+      productType: item.productType,
       quantity: item.quantity.toString(),
       lineTotalKobo: item.lineTotalKobo,
     })),

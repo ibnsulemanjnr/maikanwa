@@ -68,8 +68,8 @@ export async function POST(req: NextRequest) {
     }
 
     const serviceItem = order.items.find((i) => i.id === body.serviceOrderItemId);
-    if (!serviceItem || serviceItem.productType !== ProductType.SERVICE) {
-      return NextResponse.json({ ok: false, error: "Invalid service order item" }, { status: 400 });
+    if (!serviceItem) {
+      return NextResponse.json({ ok: false, error: "Invalid order item" }, { status: 400 });
     }
 
     const fabricItem = body.fabricOrderItemId
