@@ -1,3 +1,4 @@
+// apps/web/app/api/tailoring/jobs/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requireUser } from "@/lib/auth/requireUser";
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         order: {
           select: {
             id: true,
+            userId: true, // ✅ add this
             status: true,
             paymentStatus: true,
             createdAt: true,

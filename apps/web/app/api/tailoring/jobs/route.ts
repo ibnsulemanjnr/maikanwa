@@ -1,4 +1,4 @@
-// apps/
+// apps/web/app/api/tailoring/jobs/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma, TailoringServiceType, ProductType } from "@prisma/client";
