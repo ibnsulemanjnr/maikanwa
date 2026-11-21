@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useState } from 'react';
+import Link from "next/link";
+import { useState } from "react";
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -13,45 +13,75 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3 flex-shrink-0">
             <div className="w-10 h-10 bg-[#1E2A78] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">M</span>
+              <span className="text-white font-bold text-xl">S</span>
             </div>
-            <span className="text-xl font-bold text-[#1E2A78] hidden sm:block">Maikanwa</span>
+            <span className="text-xl font-bold text-[#1E2A78] hidden sm:block">
+              SS Luxury Wears
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-1">
-            <Link href="/shop" className="px-4 py-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold text-base transition-colors">
+            <Link
+              href="/shop"
+              className="px-4 py-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold text-base transition-colors"
+            >
               Shop
             </Link>
-            <Link href="/tailoring" className="px-4 py-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold text-base transition-colors">
+            <Link
+              href="/tailoring"
+              className="px-4 py-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold text-base transition-colors"
+            >
               Tailoring
             </Link>
-            <Link href="/about" className="px-4 py-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold text-base transition-colors">
+            <Link
+              href="/about"
+              className="px-4 py-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold text-base transition-colors"
+            >
               About
             </Link>
           </nav>
 
           {/* Right Actions */}
           <div className="flex items-center space-x-2">
-            <Link href="/auth/login" className="hidden sm:block px-4 py-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold transition-colors">
+            <Link
+              href="/auth/login"
+              className="hidden sm:block px-4 py-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold transition-colors"
+            >
               Login
             </Link>
-            
-            <Link href="/cart" className="relative p-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg transition-colors">
+
+            <Link
+              href="/cart"
+              className="relative p-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg transition-colors"
+            >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                />
               </svg>
               <span className="absolute top-0 right-0 bg-[#F4B400] text-[#111827] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                 0
               </span>
             </Link>
-            
-            <Link href="/account" className="hidden sm:flex p-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg transition-colors">
+
+            <Link
+              href="/account"
+              className="hidden sm:flex p-2 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg transition-colors"
+            >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
               </svg>
             </Link>
-            
+
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -59,11 +89,21 @@ export default function Header() {
             >
               {mobileMenuOpen ? (
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               ) : (
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
                 </svg>
               )}
             </button>
@@ -75,36 +115,36 @@ export default function Header() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-[#E5E7EB] bg-white">
           <nav className="px-4 py-3 space-y-1">
-            <Link 
-              href="/shop" 
+            <Link
+              href="/shop"
               className="block px-4 py-3 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold transition-colors"
               onClick={() => setMobileMenuOpen(false)}
             >
               Shop
             </Link>
-            <Link 
-              href="/tailoring" 
+            <Link
+              href="/tailoring"
               className="block px-4 py-3 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold transition-colors"
               onClick={() => setMobileMenuOpen(false)}
             >
               Tailoring
             </Link>
-            <Link 
-              href="/about" 
+            <Link
+              href="/about"
               className="block px-4 py-3 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold transition-colors"
               onClick={() => setMobileMenuOpen(false)}
             >
               About
             </Link>
-            <Link 
-              href="/auth/login" 
+            <Link
+              href="/auth/login"
               className="block px-4 py-3 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold transition-colors"
               onClick={() => setMobileMenuOpen(false)}
             >
               Login
             </Link>
-            <Link 
-              href="/account" 
+            <Link
+              href="/account"
               className="block px-4 py-3 text-gray-900 hover:text-[#1E2A78] hover:bg-gray-100 rounded-lg font-bold transition-colors"
               onClick={() => setMobileMenuOpen(false)}
             >
